@@ -1,0 +1,2 @@
+{"backend":"sdl3","protocol":1,"type":"hello","version":"unavailable"}
+{"code":"dependency_missing","message":"SDL3 Python bindings are unavailable.","type":"error"}

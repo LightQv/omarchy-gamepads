@@ -1,0 +1,44 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          path: plugin
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: basecamp/omarchy
+          ref: 7be59e1f4b7451d352d4673c560168290792590f
+          path: omarchy
+          sparse-checkout: |
+            bin/omarchy-plugin-validate
+            shell/
+          sparse-checkout-cone-mode: false
+
+      - name: Install Qt 6 QML lint
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends qt6-declarative-dev-tools
+
+      - name: Validate manifest
+        run: ./omarchy/bin/omarchy-plugin-validate ./plugin
+
+      - name: Lint QML
+        env:
+          OMARCHY_SHELL_PATH: ${{ github.workspace }}/omarchy/shell
+        run: bash ./plugin/scripts/lint-qml.sh
+
+      - name: Run backend tests
+        run: |
+          python -m compileall -q plugin/scripts plugin/tests
+          python -m unittest discover -s plugin/tests -v

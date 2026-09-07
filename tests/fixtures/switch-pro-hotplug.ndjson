@@ -1,0 +1,4 @@
+{"backend":"sdl3","protocol":1,"type":"hello","version":"3.4.14"}
+{"controllers":[],"sequence":1,"type":"snapshot"}
+{"controller":{"axes":{"leftx":0.0,"lefty":0.0,"rightx":0.0,"righty":0.0},"battery":{"available":false,"level":null,"percent":null,"state":"unknown"},"buttons":{"south":false},"capabilities":{"axes":["leftx","lefty","rightx","righty"],"buttons":["south"]},"connection":"unknown","family":"switch-pro","id":"8","name":"Nintendo Switch Pro Controller","productId":"2009","sdlType":"switchpro","vendorId":"057e"},"sequence":2,"type":"controller"}
+{"id":"8","sequence":3,"type":"removed"}

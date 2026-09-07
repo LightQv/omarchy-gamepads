@@ -1,0 +1,3 @@
+{"backend":"sdl3","protocol":1,"type":"hello","version":"3.4.14"}
+{"controllers":[],"sequence":1,"type":"snapshot"}
+{"code":"unsupported_device","message":"A joystick-like device was not accepted by the SDL Gamepad API.","type":"error"}
