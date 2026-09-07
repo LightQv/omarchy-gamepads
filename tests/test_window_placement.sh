@@ -29,6 +29,24 @@ fi
 )
 
 (
+  source "$repo_root/scripts/prepare-details-window"
+  hyprctl_call() {
+    case ${1:-} in
+      monitors)
+        printf '%s\n' '[{"focused":true,"width":900,"height":650,"scale":1,"reserved":[0,20,0,0]}]'
+        ;;
+      eval)
+        printf 'eval:%s\n' "${2:-}" >>"$mock_log"
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  }
+  prepare_details_window "constrained-monitor"
+)
+
+(
   source "$repo_root/scripts/place-details-window"
   hyprctl_call() {
     case ${1:-} in
@@ -54,6 +72,33 @@ fi
 )
 
 (
+  source "$repo_root/scripts/place-details-window"
+  hyprctl_call() {
+    case ${1:-} in
+      monitors)
+        printf '%s\n' '[{"focused":true,"width":900,"height":650,"scale":1,"reserved":[0,20,0,0]}]'
+        ;;
+      activeworkspace)
+        printf '%s\n' '{"id":3,"name":"3"}'
+        ;;
+      clients)
+        printf '[{"address":"0xcafe","pid":%s,"class":"org.quickshell","title":"Gamepad Details","floating":true,"workspace":{"id":3,"name":"3"}}]\n' "$PPID"
+        ;;
+      dispatch)
+        printf 'dispatch:%s\n' "${2:-}" >>"$mock_log"
+        ;;
+      eval)
+        printf 'eval:%s\n' "${2:-}" >>"$mock_log"
+        ;;
+      *)
+        return 1
+        ;;
+    esac
+  }
+  place_details_window "constrained-monitor"
+)
+
+(
   source "$repo_root/scripts/clear-details-window-rule"
   hyprctl_call() {
     printf 'eval:%s\n' "${2:-}" >>"$mock_log"
@@ -68,10 +113,14 @@ for expected in \
   '-first-attempt"' \
   'pid = "^' \
   'float = true' \
+  'size = { 960, 680 }' \
+  'size = { 860, 590 }' \
   'workspace = "special:gamepads"' \
   'window = "address:0xabc123"' \
   'hl.dsp.window.float' \
   'hl.dsp.window.resize' \
+  'x = 960, y = 680' \
+  'x = 860, y = 590' \
   'hl.dsp.window.center' \
   'hl.dsp.focus' \
   'enabled = false' \

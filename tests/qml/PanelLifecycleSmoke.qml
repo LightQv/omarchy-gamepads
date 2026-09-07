@@ -189,24 +189,24 @@ ShellRoot {
                 root.expect(fakeService.selectedId === "12", "payload selection");
                 root.expect(panel.selectedProfileId === "switch-pro", "profile selection");
                 root.expect(panel.streamingControllerId === "12", "initial streaming");
-                root.expect(panel.setMode("input-test") && panel.mode === "input-test", "input mode");
-                panel.handleCloseRequest();
-                root.expect(panel.opened && panel.mode === "overview", "input escape hierarchy");
-                root.expect(panel.setMode("input-test"), "input mode reentry");
-                fakeService.selectController("11");
+                root.expect(panel.visualProfileActive, "persistent profile visual");
+                root.expect(panel.informationFits, "default information fit");
+                root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
+                root.expect(panel.pressedButtonsLabel() === "None", "live button summary");
+                panel.handleNavigation(-1, 0);
+                root.expect(fakeService.selectedId === "11", "keyboard device navigation");
                 root.phase = 1;
                 return;
             }
             if (root.phase === 1) {
                 root.expect(panel.streamingControllerId === "11", "selection streaming");
-                panel.scrollContent(1, true);
-                root.expect(panel.scrollPosition > 0, "keyboard scrolling");
                 fakeService.updateSelectedInput();
                 root.phase = 11;
                 return;
             }
             if (root.phase === 11) {
-                root.expect(panel.scrollPosition > 0, "input preserves scroll");
+                root.expect(panel.axisValue("leftx") === "0.50", "unified live input");
+                root.expect(panel.streamingControllerId === "11", "input preserves streaming");
                 fakeService.addController(root.controller("13", "Xbox Wireless Controller", "xboxone", "xbox"));
                 root.expect(fakeService.selectedId === "11", "hotplug selection stability");
                 fakeService.selectController("13");
@@ -216,10 +216,8 @@ ShellRoot {
             if (root.phase === 2) {
                 root.expect(panel.tabCount === 3, "hotplug tabs");
                 root.expect(panel.selectedProfileId === "", "unsupported profile");
-                root.expect(panel.mode === "overview", "unsupported overview");
-                root.expect(panel.scrollPosition === 0, "tab resets scroll");
+                root.expect(!panel.visualProfileActive, "unsupported visual fallback");
                 root.expect(panel.streamingControllerId === "13", "unsupported streaming");
-                root.expect(panel.setMode("input-test") === false, "unsupported input guard");
                 fakeService.removeController("13");
                 root.phase = 3;
                 return;
@@ -239,7 +237,7 @@ ShellRoot {
                 root.expect(fakeService.clearCount > 0, "stream cleanup");
                 fakeService.addController(root.controller("21", "Nintendo Switch Pro Controller", "switchpro", "switch-pro"));
                 fakeService.selectedId = "21";
-                panel.requestClose();
+                panel.handleCloseRequest();
                 root.expect(!panel.opened && root.hiddenId === "lightqv.gamepads", "host close");
                 root.expect(fakeService.streamingId === "", "close streaming");
                 root.phase = 5;
@@ -250,7 +248,7 @@ ShellRoot {
             }
             root.expect(fakeService.selectedId === "21", "reopen selection");
             root.expect(panel.streamingControllerId === "21", "reopen streaming");
-            panel.requestClose();
+            panel.handleCloseRequest();
             root.expect(!panel.opened && root.hiddenId === "lightqv.gamepads", "reopen host close");
             root.expect(fakeService.streamingId === "", "reopen cleanup");
             console.log(root.valid ? "PANEL_LIFECYCLE_SMOKE_OK" : "PANEL_LIFECYCLE_SMOKE_FAILED: " + root.failures);

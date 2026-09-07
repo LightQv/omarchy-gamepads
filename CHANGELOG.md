@@ -10,5 +10,6 @@ All notable changes to this project will be documented here.
 - Add udev transport and kernel power-supply fallbacks.
 - Add bounded command, event, replay, privacy, and cleanup safeguards.
 - Add the shared QML service, native compact panel, and floating Details lifecycle.
-- Add physical-controller tabs, validated Switch Pro profiles, and live input mode.
+- Add physical-controller tabs, validated Switch Pro profiles, and unified live input.
 - Add hotplug-safe selection and visible selected-controller streaming.
+- Refine Details into persistent information and visual panes with monitor-aware sizing for guided diagnostics and 3D.

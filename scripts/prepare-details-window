@@ -7,11 +7,46 @@ hyprctl_call() {
   /usr/bin/timeout 2 /usr/bin/hyprctl "$@"
 }
 
+fit_details_size() {
+  local requested_width=${1:-960}
+  local requested_height=${2:-680}
+  local maximum_hyprland_bytes=4194304
+  local monitors_json dimensions fitted_width fitted_height
+
+  monitors_json=$(hyprctl_call monitors -j 2>/dev/null |
+    /usr/bin/head -c "$((maximum_hyprland_bytes + 1))") || {
+    printf '%s %s\n' "$requested_width" "$requested_height"
+    return
+  }
+  if (( ${#monitors_json} > maximum_hyprland_bytes )); then
+    printf '%s %s\n' "$requested_width" "$requested_height"
+    return
+  fi
+  dimensions=$(/usr/bin/jq -r --argjson requested_width "$requested_width" --argjson requested_height "$requested_height" '
+    if type == "array" then ([.[] | select(.focused == true)][0] // empty) else empty end
+    | select((.width | type) == "number" and (.height | type) == "number"
+        and (.scale | type) == "number" and .scale > 0)
+    | (((.width / .scale) - (.reserved[0] // 0) - (.reserved[2] // 0) - 40) | floor) as $maximum_width
+    | (((.height / .scale) - (.reserved[1] // 0) - (.reserved[3] // 0) - 40) | floor) as $maximum_height
+    | select($maximum_width >= 320 and $maximum_height >= 240)
+    | [([$requested_width, $maximum_width] | min), ([$requested_height, $maximum_height] | min)]
+    | @tsv
+  ' <<<"$monitors_json" 2>/dev/null) || dimensions=""
+  read -r fitted_width fitted_height <<<"$dimensions"
+  if [[ $fitted_width =~ ^[0-9]+$ && $fitted_height =~ ^[0-9]+$ ]]; then
+    printf '%s %s\n' "$fitted_width" "$fitted_height"
+  else
+    printf '%s %s\n' "$requested_width" "$requested_height"
+  fi
+}
+
 prepare_details_window() {
   local rule_token=${1:-}
   local expected_pid=$PPID
+  local window_width window_height
   [[ $rule_token =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
   [[ $expected_pid =~ ^[1-9][0-9]*$ ]] || return 1
+  read -r window_width window_height < <(fit_details_size 960 680)
 
   hyprctl_call eval "
     hl.window_rule({
@@ -23,7 +58,7 @@ prepare_details_window() {
       },
       float = true,
       center = true,
-      size = { 680, 560 },
+      size = { ${window_width}, ${window_height} },
     })
   " >/dev/null
 }

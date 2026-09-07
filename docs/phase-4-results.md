@@ -11,11 +11,12 @@
 - Native keyboard-focusable controller tabs with duplicate-name numbering and overflow reveal behavior.
 - Validated controller-profile registry with deterministic specificity scoring and ambiguous-match rejection.
 - Initial Switch Pro profile with Nintendo-style labels, expected controls, trigger semantics, visual-part mappings, and a lightweight visual component contract.
-- Overview and live Input Test modes with keyboard mode switching and non-diagnostic live button/axis display.
+- Unified split-pane workspace with persistent controller information, live textual input, and a profile visual.
 - Generic vitals and a clear detailed-profile-unavailable state for recognized controllers without a profile.
 - Selected-controller high-rate streaming only while Details is visible, with cleanup on close, service replacement, empty state, and component destruction.
 - Stable low-frequency tab and axis identity projections that avoid rebuilding delegates for every input frame.
-- Bounded line, page, Home, and End scrolling plus an Escape hierarchy that leaves Input Test before closing Details.
+- Independent bounded information-pane scrolling plus direct Escape closure until Phase 5 introduces real subordinate diagnostic state.
+- Monitor-aware `960x680` target sizing that preserves both panes and caps placement to the focused monitor's usable logical area.
 
 ## Profile Safety
 
@@ -32,16 +33,16 @@
 - `omarchy plugin validate .`: passed.
 - `scripts/lint-qml.sh`: passed.
 - `scripts/test-service.sh`: nine replay, supervision, dependency, error, limit, and streaming lifecycle cases passed.
-- `scripts/test-panel.sh`: tabs, duplicate names, hotplug, neighboring selection, unsupported profile, modes, scrolling, streaming cleanup, and host lifecycle passed.
-- `tests/test_window_placement.sh`: passed.
+- `scripts/test-panel.sh`: tabs, duplicate names, hotplug, neighboring selection, persistent profile visuals, unsupported fallback, unified live input, streaming cleanup, and host lifecycle passed.
+- `tests/test_window_placement.sh`: default and constrained-monitor placement passed.
 - `node --test tests/model.test.js tests/profile.test.js`: 20 tests passed.
 - `python -m compileall -q scripts tests`: passed.
 - `python -m unittest discover -s tests -v`: 29 tests passed, including all committed replay fixtures.
 - Senior correctness review and security review approved the final implementation.
 - Live shell restart loaded one helper and one wired Nintendo Switch Pro Controller.
-- Live Details opened floating at `680x560` on the active workspace.
-- Keyboard-only Tab, Right, and Enter opened Input Test; Page Down reached every live axis and the End action.
-- The first Escape returned from Input Test to Overview; the second closed Details and synchronized shell state.
+- Live Details opened floating at `960x680` on the active workspace.
+- The native header and device-tab row remained fixed above the information and visual panes.
+- Escape closed Details and synchronized shell state; Phase 5 will add an active-session confirmation level.
 - Current shell logs contained no warning or error attributed to `lightqv.gamepads`.
 
 ## Environment Notes

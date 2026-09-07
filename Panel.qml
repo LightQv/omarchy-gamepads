@@ -26,8 +26,6 @@ Item {
     property int ruleGeneration: 0
     property string activeRuleToken: ""
     property var pendingCleanupTokens: []
-    property string currentMode: "overview"
-    property int focusRegion: 0
     property var registeredStreamingService: null
     property string registeredStreamingId: ""
     property var visibleAxisNames: []
@@ -39,9 +37,11 @@ Item {
     readonly property var controllerProfile: Profiles.profileFor(controller)
     readonly property int tabCount: controllerTabs.length
     readonly property string selectedProfileId: controllerProfile ? controllerProfile.id : ""
-    readonly property string mode: currentMode
     readonly property string streamingControllerId: registeredStreamingId
     readonly property real scrollPosition: scroll.contentItem ? scroll.contentItem.contentY : 0
+    readonly property bool visualProfileActive: profileView.active && profileView.status === Loader.Ready && !!profileView.item
+    readonly property bool informationFits: !controller || information.implicitHeight <= scroll.height
+    readonly property real visualPaneWidth: visualPane.width
     readonly property string pluginId: manifest && manifest.id ? manifest.id : "lightqv.gamepads"
     readonly property color foreground: Color.foreground
     readonly property color background: Color.background
@@ -68,10 +68,6 @@ Item {
         refreshAxisNames();
     }
     onSelectedControllerIdChanged: resetScroll()
-    onControllerProfileChanged: {
-        if (!controllerProfile)
-            currentMode = "overview";
-    }
 
     function localPath(url) {
         return decodeURIComponent(String(url).replace(/^file:\/\//, ""));
@@ -172,10 +168,6 @@ Item {
     }
 
     function handleCloseRequest() {
-        if (currentMode === "input-test") {
-            setMode("overview");
-            return;
-        }
         requestClose();
     }
 
@@ -189,51 +181,24 @@ Item {
             service.selectController(controllerId);
     }
 
-    function setMode(nextMode) {
-        if (nextMode !== "overview" && nextMode !== "input-test")
-            return false;
-        if (nextMode === "input-test" && !controllerProfile)
-            return false;
-        currentMode = nextMode;
-        resetScroll();
-        return true;
-    }
-
-    function modeOptions() {
-        var options = [
-            {
-                value: "overview",
-                label: "Overview",
-                icon: "󰋼"
-            }
-        ];
-        if (controllerProfile) {
-            options.push({
-                value: "input-test",
-                label: "Input Test",
-                icon: "󰐾"
-            });
-        }
-        return options;
-    }
-
     function focusCurrentRegion() {
-        if (focusRegion === 0 && tabCount > 0)
+        if (tabCount > 0)
             controllerTabsControl.focusTabs();
-        else {
-            focusRegion = 1;
-            modeSelector.forceActiveFocus();
-        }
+        else
+            keyCatcher.forceActiveFocus();
     }
 
-    function moveFocusRegion(direction) {
-        if (tabCount === 0) {
-            focusRegion = 1;
-        } else {
-            var step = direction < 0 ? -1 : 1;
-            focusRegion = (focusRegion + step + 2) % 2;
-        }
+    function moveFocusRegion() {
         focusCurrentRegion();
+    }
+
+    function handleNavigation(dx, dy) {
+        if (dx !== 0 && tabCount > 1) {
+            cycleController(dx);
+            return;
+        }
+        if (dy !== 0)
+            scrollContent(dy, false);
     }
 
     function scrollContent(direction, page) {
@@ -359,9 +324,9 @@ Item {
         visible: false
         title: "Gamepad Details"
         color: root.background
-        implicitWidth: 680
-        implicitHeight: 560
-        minimumSize: Qt.size(560, 420)
+        implicitWidth: 960
+        implicitHeight: 680
+        minimumSize: Qt.size(760, 540)
 
         onVisibleChanged: {
             if (!visible && root.openRequested && !root.closingFromHost)
@@ -394,8 +359,7 @@ Item {
                 id: keyCatcher
                 anchors.fill: parent
                 onMoveRequested: function (dx, dy) {
-                    if (dy !== 0)
-                        root.scrollContent(dy, false);
+                    root.handleNavigation(dx, dy);
                 }
                 onTabRequested: function (direction) {
                     root.moveFocusRegion(direction);
@@ -465,119 +429,179 @@ Item {
                                 root.selectController(controllerId);
                             }
                         }
-
-                        Ui.ButtonGroup {
-                            id: modeSelector
-                            visible: !!root.controller
-                            options: root.modeOptions()
-                            value: root.currentMode
-                            foreground: root.foreground
-                            background: root.background
-                            fontFamily: root.fontFamily
-                            onChanged: function (value) {
-                                root.setMode(value);
-                            }
-                        }
                     }
 
-                    ScrollView {
-                        id: scroll
+                    Item {
+                        id: workspace
                         width: parent.width
                         height: Math.max(0, frame.height - fixedHeader.height - frame.spacing)
-                        clip: true
-                        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                        ScrollBar.vertical.policy: content.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
 
-                        Column {
-                            id: content
-                            width: scroll.availableWidth
+                        Row {
+                            visible: !!root.controller
+                            anchors.fill: parent
                             spacing: Style.space(18)
 
-                            Column {
-                                visible: !!root.controller
-                                width: parent.width
-                                spacing: Style.space(8)
-
-                                Ui.PanelSectionHeader {
-                                    text: "SELECTED CONTROLLER"
-                                    foreground: root.foreground
-                                    fontFamily: root.fontFamily
+                            ScrollView {
+                                id: scroll
+                                width: {
+                                    var available = parent.width - parent.spacing;
+                                    return Math.min(Math.max(280, Math.floor(available * 0.38)), available - 360);
                                 }
+                                height: parent.height
+                                clip: true
+                                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                                ScrollBar.vertical.policy: information.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
 
-                                Ui.CursorSurface {
-                                    width: parent.width
-                                    implicitHeight: controllerIdentity.implicitHeight + Style.space(24)
-                                    current: true
-                                    bordered: true
-                                    foreground: root.foreground
+                                Column {
+                                    id: information
+                                    width: scroll.availableWidth
+                                    spacing: Style.space(12)
 
-                                    Row {
-                                        id: controllerIdentity
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.leftMargin: Style.space(12)
-                                        anchors.rightMargin: Style.space(12)
-                                        spacing: Style.space(12)
+                                    Ui.PanelSectionHeader {
+                                        text: "SELECTED CONTROLLER"
+                                        foreground: root.foreground
+                                        fontFamily: root.fontFamily
+                                    }
 
-                                        Text {
-                                            text: "󰊴"
-                                            color: Model.batteryIsLow(root.controller) ? Color.urgent : root.foreground
-                                            font.family: root.fontFamily
-                                            font.pixelSize: Style.font.display
+                                    Ui.CursorSurface {
+                                        width: parent.width
+                                        implicitHeight: controllerIdentity.implicitHeight + Style.space(20)
+                                        current: true
+                                        bordered: true
+                                        foreground: root.foreground
+
+                                        Row {
+                                            id: controllerIdentity
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
-                                        }
-
-                                        Column {
-                                            width: parent.width - parent.children[0].width - parent.spacing
-                                            spacing: Style.space(3)
+                                            anchors.leftMargin: Style.space(12)
+                                            anchors.rightMargin: Style.space(12)
+                                            spacing: Style.space(12)
 
                                             Text {
-                                                width: parent.width
-                                                textFormat: Text.PlainText
-                                                text: root.controller ? root.controller.name : ""
-                                                color: root.foreground
+                                                text: "󰊴"
+                                                color: Model.batteryIsLow(root.controller) ? Color.urgent : root.foreground
                                                 font.family: root.fontFamily
-                                                font.pixelSize: Style.font.title
-                                                font.bold: true
-                                                elide: Text.ElideRight
+                                                font.pixelSize: Style.font.display
+                                                anchors.verticalCenter: parent.verticalCenter
                                             }
 
-                                            Text {
-                                                width: parent.width
-                                                textFormat: Text.PlainText
-                                                text: root.connectionSummary()
-                                                color: Model.batteryIsLow(root.controller) ? Color.urgent : Qt.darker(root.foreground, 1.35)
-                                                font.family: root.fontFamily
-                                                font.pixelSize: Style.font.bodySmall
-                                                elide: Text.ElideRight
+                                            Column {
+                                                width: parent.width - parent.children[0].width - parent.spacing
+                                                spacing: Style.space(3)
+
+                                                Text {
+                                                    width: parent.width
+                                                    textFormat: Text.PlainText
+                                                    text: root.controller ? root.controller.name : ""
+                                                    color: root.foreground
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: Style.font.title
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                }
+
+                                                Text {
+                                                    width: parent.width
+                                                    textFormat: Text.PlainText
+                                                    text: root.connectionSummary()
+                                                    color: Model.batteryIsLow(root.controller) ? Color.urgent : Qt.darker(root.foreground, 1.35)
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: Style.font.bodySmall
+                                                    elide: Text.ElideRight
+                                                }
                                             }
                                         }
+                                    }
+
+                                    Ui.PanelSectionHeader {
+                                        text: "DETAILS"
+                                        foreground: root.foreground
+                                        fontFamily: root.fontFamily
+                                    }
+
+                                    DetailRow {
+                                        width: parent.width
+                                        label: "Family"
+                                        value: root.controller && root.controller.family ? root.controller.family : "Unknown"
+                                    }
+
+                                    DetailRow {
+                                        width: parent.width
+                                        label: "Profile"
+                                        value: root.controllerProfile ? root.controllerProfile.displayName : "Not available"
+                                    }
+
+                                    Ui.PanelSeparator {
+                                        foreground: root.foreground
+                                    }
+
+                                    Ui.PanelSectionHeader {
+                                        text: "LIVE INPUT"
+                                        foreground: root.foreground
+                                        fontFamily: root.fontFamily
+                                    }
+
+                                    DetailRow {
+                                        width: parent.width
+                                        label: "Pressed buttons"
+                                        value: root.pressedButtonsLabel()
+                                    }
+
+                                    Grid {
+                                        id: liveAxisGrid
+                                        width: parent.width
+                                        columns: 2
+                                        columnSpacing: Style.space(8)
+                                        rowSpacing: Style.space(8)
+
+                                        Repeater {
+                                            model: root.visibleAxisNames
+
+                                            delegate: DetailRow {
+                                                required property string modelData
+                                                width: (liveAxisGrid.width - liveAxisGrid.columnSpacing) / 2
+                                                label: Profiles.labelFor(root.controllerProfile, modelData)
+                                                value: root.axisValue(modelData)
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        visible: root.service && (root.service.backendWarning || root.service.health === "error")
+                                        width: parent.width
+                                        textFormat: Text.PlainText
+                                        text: root.service ? root.service.lastErrorMessage : ""
+                                        color: Color.urgent
+                                        font.family: root.fontFamily
+                                        font.pixelSize: Style.font.bodySmall
+                                        wrapMode: Text.WordWrap
                                     }
                                 }
                             }
 
-                            Ui.PanelSeparator {
-                                visible: !!root.controller
-                                foreground: root.foreground
-                            }
-
-                            Column {
-                                visible: !!root.controller && root.currentMode === "overview"
-                                width: parent.width
-                                spacing: Style.space(8)
+                            Item {
+                                id: visualPane
+                                width: parent.width - scroll.width - parent.spacing
+                                height: parent.height
 
                                 Ui.PanelSectionHeader {
-                                    text: "OVERVIEW"
+                                    id: visualHeader
+                                    text: "CONTROLLER VIEW"
                                     foreground: root.foreground
                                     fontFamily: root.fontFamily
                                 }
 
                                 Loader {
                                     id: profileView
-                                    visible: !!root.controllerProfile
-                                    width: parent.width
-                                    active: root.opened && root.currentMode === "overview" && !!root.controllerProfile
+                                    active: root.opened && !!root.controllerProfile
+                                    visible: active
+                                    anchors.top: visualHeader.bottom
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.bottom: parent.bottom
+                                    anchors.topMargin: Style.space(8)
                                     source: root.controllerProfile ? Qt.resolvedUrl("profiles/" + root.controllerProfile.viewComponent) : ""
                                     onLoaded: {
                                         if (!item)
@@ -594,147 +618,59 @@ Item {
                                     }
                                 }
 
-                                DetailRow {
-                                    width: parent.width
-                                    label: "Connection"
-                                    value: root.controller ? Model.connectionLabel(root.controller) : ""
-                                }
-
-                                DetailRow {
-                                    width: parent.width
-                                    label: "Battery"
-                                    value: root.controller ? Model.batteryLabel(root.controller) : ""
-                                    urgent: Model.batteryIsLow(root.controller)
-                                }
-
-                                DetailRow {
-                                    visible: root.controller && Model.batteryStateLabel(root.controller) !== ""
-                                    width: parent.width
-                                    label: "Power state"
-                                    value: root.controller ? Model.batteryStateLabel(root.controller) : ""
-                                }
-
-                                DetailRow {
-                                    width: parent.width
-                                    label: "Controller family"
-                                    value: root.controller && root.controller.family ? root.controller.family : "Unknown"
-                                }
-
-                                DetailRow {
-                                    width: parent.width
-                                    label: "Detailed profile"
-                                    value: root.controllerProfile ? root.controllerProfile.displayName : "Not available"
-                                }
-
-                                Ui.Button {
-                                    visible: !!root.controllerProfile
-                                    text: "Open Input Test"
-                                    iconText: "󰐾"
-                                    bordered: true
-                                    foreground: root.foreground
-                                    background: root.background
-                                    fontFamily: root.fontFamily
-                                    Accessible.role: Accessible.Button
-                                    Accessible.name: text
-                                    Accessible.onPressAction: root.setMode("input-test")
-                                    onClicked: root.setMode("input-test")
-                                }
-                            }
-
-                            Ui.CursorSurface {
-                                visible: !!root.controller && !root.controllerProfile
-                                width: parent.width
-                                implicitHeight: unsupportedContent.implicitHeight + Style.space(24)
-                                bordered: true
-                                foreground: root.foreground
-
-                                Column {
-                                    id: unsupportedContent
+                                Ui.CursorSurface {
+                                    visible: !root.controllerProfile
+                                    anchors.top: visualHeader.bottom
                                     anchors.left: parent.left
                                     anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    anchors.margins: Style.space(12)
-                                    spacing: Style.space(6)
-
-                                    Text {
-                                        width: parent.width
-                                        text: "Detailed profile unavailable"
-                                        color: root.foreground
-                                        font.family: root.fontFamily
-                                        font.pixelSize: Style.font.title
-                                        font.bold: true
-                                    }
-
-                                    Text {
-                                        width: parent.width
-                                        text: "This SDL-recognized controller keeps its vitals and controller tab, but does not yet have a visual or guided input-test profile."
-                                        color: Qt.darker(root.foreground, 1.35)
-                                        font.family: root.fontFamily
-                                        font.pixelSize: Style.font.bodySmall
-                                        wrapMode: Text.WordWrap
-                                    }
-                                }
-                            }
-
-                            Column {
-                                visible: !!root.controller && root.currentMode === "input-test" && !!root.controllerProfile
-                                width: parent.width
-                                spacing: Style.space(8)
-
-                                Ui.PanelSectionHeader {
-                                    text: "LIVE INPUT"
-                                    foreground: root.foreground
-                                    fontFamily: root.fontFamily
-                                }
-
-                                Text {
-                                    width: parent.width
-                                    text: "Live input is active for this controller. Guided checks and diagnostic results are added in Phase 5."
-                                    color: Qt.darker(root.foreground, 1.35)
-                                    font.family: root.fontFamily
-                                    font.pixelSize: Style.font.bodySmall
-                                    wrapMode: Text.WordWrap
-                                }
-
-                                DetailRow {
-                                    width: parent.width
-                                    label: "Pressed buttons"
-                                    value: root.pressedButtonsLabel()
-                                }
-
-                                Repeater {
-                                    model: root.visibleAxisNames
-
-                                    delegate: DetailRow {
-                                        required property string modelData
-                                        width: content.width
-                                        label: Profiles.labelFor(root.controllerProfile, modelData)
-                                        value: root.axisValue(modelData)
-                                    }
-                                }
-
-                                Ui.Button {
-                                    text: "End Input Test"
-                                    iconText: "󰅖"
+                                    anchors.bottom: parent.bottom
+                                    anchors.topMargin: Style.space(8)
                                     bordered: true
                                     foreground: root.foreground
-                                    background: root.background
-                                    fontFamily: root.fontFamily
-                                    Accessible.role: Accessible.Button
-                                    Accessible.name: text
-                                    Accessible.onPressAction: root.setMode("overview")
-                                    onClicked: root.setMode("overview")
+
+                                    Column {
+                                        anchors.centerIn: parent
+                                        width: Math.min(parent.width - Style.space(48), Style.space(440))
+                                        spacing: Style.space(8)
+
+                                        Text {
+                                            width: parent.width
+                                            text: "Detailed profile unavailable"
+                                            color: root.foreground
+                                            font.family: root.fontFamily
+                                            font.pixelSize: Style.font.title
+                                            font.bold: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            text: "This SDL-recognized controller keeps its vitals and device tab, but does not yet have a visual or guided diagnostic profile."
+                                            color: Qt.darker(root.foreground, 1.35)
+                                            font.family: root.fontFamily
+                                            font.pixelSize: Style.font.bodySmall
+                                            horizontalAlignment: Text.AlignHCenter
+                                            wrapMode: Text.WordWrap
+                                        }
+                                    }
                                 }
                             }
+                        }
+
+                        Column {
+                            visible: !root.controller
+                            anchors.centerIn: parent
+                            width: Math.min(parent.width, Style.space(520))
+                            spacing: Style.space(8)
 
                             Text {
-                                visible: !root.controller
                                 width: parent.width
                                 textFormat: Text.PlainText
                                 text: root.service ? (root.service.health === "starting" || root.service.health === "restarting" ? "The gamepad backend is starting." : "No SDL-recognized gamepads are connected.") : "The shared gamepad service is unavailable."
                                 color: Qt.darker(root.foreground, 1.4)
                                 font.family: root.fontFamily
                                 font.pixelSize: Style.font.body
+                                horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
                             }
 
@@ -746,6 +682,7 @@ Item {
                                 color: Color.urgent
                                 font.family: root.fontFamily
                                 font.pixelSize: Style.font.bodySmall
+                                horizontalAlignment: Text.AlignHCenter
                                 wrapMode: Text.WordWrap
                             }
                         }
