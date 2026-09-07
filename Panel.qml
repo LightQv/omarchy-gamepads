@@ -29,6 +29,8 @@ Item {
     property var registeredStreamingService: null
     property string registeredStreamingId: ""
     property var visibleAxisNames: []
+    property string exportMessage: ""
+    property int focusRegion: 0
 
     readonly property bool opened: detailsWindow.visible
     readonly property var controller: service ? service.selectedController : null
@@ -42,6 +44,11 @@ Item {
     readonly property bool visualProfileActive: profileView.active && profileView.status === Loader.Ready && !!profileView.item
     readonly property bool informationFits: !controller || information.implicitHeight <= scroll.height
     readonly property real visualPaneWidth: visualPane.width
+    readonly property var diagnosticState: service && service.diagnosticState ? service.diagnosticState : ({ phase: "idle" })
+    readonly property string diagnosticPhase: diagnosticState.phase || "idle"
+    readonly property bool diagnosticActive: ["baseline_waiting", "baseline_capturing", "digital", "analog_left", "analog_right"].indexOf(diagnosticPhase) !== -1
+    readonly property bool diagnosticSessionOpen: diagnosticPhase !== "idle"
+    readonly property bool cancelConfirmationOpen: cancelDialog.opened
     readonly property string pluginId: manifest && manifest.id ? manifest.id : "lightqv.gamepads"
     readonly property color foreground: Color.foreground
     readonly property color background: Color.background
@@ -51,7 +58,12 @@ Item {
     readonly property string ruleInstanceToken: Math.floor(Date.now()).toString(36) + "-" + Math.floor(Math.random() * 2147483647).toString(36)
 
     Component.onDestruction: {
+        if (diagnosticActive && service && typeof service.interruptDiagnostics === "function")
+            service.interruptDiagnostics();
         clearStreamingRequest();
+        exportTimer.stop();
+        if (exportProcess.running)
+            exportProcess.running = false;
         var tokens = pendingCleanupTokens.slice();
         if (ruleCleanupProcess.running && tokens.indexOf(ruleCleanupProcess.ruleToken) === -1)
             tokens.push(ruleCleanupProcess.ruleToken);
@@ -68,6 +80,11 @@ Item {
         refreshAxisNames();
     }
     onSelectedControllerIdChanged: resetScroll()
+    onDiagnosticPhaseChanged: {
+        syncStreamingRequest();
+        if (diagnosticPhase !== "review")
+            exportMessage = "";
+    }
 
     function localPath(url) {
         return decodeURIComponent(String(url).replace(/^file:\/\//, ""));
@@ -118,8 +135,9 @@ Item {
 
     function open(payloadJson) {
         var payload = parseOpenRequest(payloadJson);
-        if (service && typeof payload.controllerId === "string" && /^[1-9][0-9]{0,19}$/.test(payload.controllerId))
+        if (!diagnosticSessionOpen && service && typeof payload.controllerId === "string" && /^[1-9][0-9]{0,19}$/.test(payload.controllerId))
             service.selectController(payload.controllerId);
+        focusRegion = diagnosticSessionOpen ? 1 : 0;
         openRequested = true;
         closingFromHost = false;
         if (windowRuleReady)
@@ -153,6 +171,8 @@ Item {
     }
 
     function close() {
+        if (diagnosticActive && service && typeof service.cancelDiagnostics === "function")
+            service.cancelDiagnostics();
         openRequested = false;
         closingFromHost = true;
         detailsWindow.visible = false;
@@ -168,31 +188,69 @@ Item {
     }
 
     function handleCloseRequest() {
+        if (cancelDialog.opened) {
+            cancelDialog.opened = false;
+            return;
+        }
+        if (diagnosticActive) {
+            showCancelConfirmation();
+            return;
+        }
         requestClose();
     }
 
+    function confirmDiagnosticCancel() {
+        cancelDialog.opened = false;
+        if (service && typeof service.cancelDiagnostics === "function")
+            service.cancelDiagnostics();
+    }
+
+    function showCancelConfirmation() {
+        cancelDialog.selectedIndex = 0;
+        cancelDialog.opened = true;
+        Qt.callLater(cancelDialog.forceActiveFocus);
+    }
+
     function cycleController(delta) {
-        if (service && service.connectedCount > 1)
+        if (!diagnosticSessionOpen && service && service.connectedCount > 1)
             service.cycleSelection(delta);
     }
 
     function selectController(controllerId) {
-        if (service && typeof service.selectController === "function")
+        if (!diagnosticSessionOpen && service && typeof service.selectController === "function")
             service.selectController(controllerId);
     }
 
     function focusCurrentRegion() {
-        if (tabCount > 0)
+        if (focusRegion === 0 && tabCount > 0)
             controllerTabsControl.focusTabs();
+        else if (diagnosticTray.visible)
+            diagnosticTray.focusCurrentAction();
         else
             keyCatcher.forceActiveFocus();
     }
 
-    function moveFocusRegion() {
+    function moveFocusRegion(direction) {
+        if (diagnosticSessionOpen) {
+            diagnosticTray.moveAction(direction);
+            diagnosticTray.focusCurrentAction();
+            return;
+        }
+        if (tabCount > 0 && diagnosticTray.visible)
+            focusRegion = focusRegion === 0 ? 1 : 0;
+        else
+            focusRegion = diagnosticTray.visible ? 1 : 0;
         focusCurrentRegion();
     }
 
     function handleNavigation(dx, dy) {
+        if (diagnosticSessionOpen) {
+            if (dx !== 0)
+                diagnosticTray.moveAction(dx);
+            else if (dy !== 0)
+                diagnosticTray.moveRetry(dy);
+            return;
+        }
         if (dx !== 0 && tabCount > 1) {
             cycleController(dx);
             return;
@@ -224,7 +282,9 @@ Item {
     }
 
     function syncStreamingRequest() {
-        var targetId = opened && controller ? String(controller.id) : "";
+        var targetId = opened && diagnosticActive && diagnosticState.connected !== false
+            ? String(diagnosticState.controllerId || "")
+            : (opened && controller ? String(controller.id) : "");
         if (registeredStreamingService && (registeredStreamingService !== service || targetId === ""))
             registeredStreamingService.setStreamingRequest("floating-panel", null);
         if (!service || typeof service.setStreamingRequest !== "function" || targetId === "") {
@@ -268,6 +328,27 @@ Item {
         if (batteryState !== "")
             labels.push(batteryState);
         return labels.join("  ·  ");
+    }
+
+    function exportDiagnosticReport() {
+        if (!service || diagnosticPhase !== "review" || exportProcess.running)
+            return;
+        var metadata = {
+            pluginVersion: manifest && manifest.version ? String(manifest.version) : "",
+            sdlVersion: service.backendVersion || "",
+            backendWarningCodes: service.lastErrorCode ? [service.lastErrorCode] : []
+        };
+        var payload = JSON.stringify({
+            report: service.diagnosticReport(metadata),
+            text: service.diagnosticTextReport(metadata)
+        });
+        if (payload.length > 1048576) {
+            exportMessage = "Report export failed: report is too large.";
+            return;
+        }
+        exportProcess.payload = payload;
+        exportMessage = "Exporting report...";
+        exportProcess.running = true;
     }
 
     Process {
@@ -319,6 +400,44 @@ Item {
         }
     }
 
+    Process {
+        id: exportProcess
+        property string payload: ""
+        command: ["/usr/bin/python3", "-E", "-s", root.scriptsDir + "/export-diagnostic-report.py"]
+        stdinEnabled: true
+        stdout: StdioCollector {
+            waitForEnd: true
+            onStreamFinished: {
+                try {
+                    var result = JSON.parse(text || "{}");
+                    root.exportMessage = result.ok ? "Report exported: " + result.basename : "Report export failed.";
+                } catch (error) {
+                    root.exportMessage = "Report export failed.";
+                }
+            }
+        }
+        onStarted: {
+            exportTimer.restart();
+            exportProcess.write(exportProcess.payload + "\n");
+        }
+        onExited: function (exitCode) {
+            exportTimer.stop();
+            if (exitCode !== 0)
+                root.exportMessage = "Report export failed.";
+            exportProcess.payload = "";
+        }
+    }
+
+    Timer {
+        id: exportTimer
+        interval: 10000
+        onTriggered: {
+            if (exportProcess.running)
+                exportProcess.running = false;
+            root.exportMessage = "Report export timed out.";
+        }
+    }
+
     FloatingWindow {
         id: detailsWindow
         visible: false
@@ -329,15 +448,27 @@ Item {
         minimumSize: Qt.size(760, 540)
 
         onVisibleChanged: {
-            if (!visible && root.openRequested && !root.closingFromHost)
+            if (!visible && root.openRequested && !root.closingFromHost) {
+                if (root.diagnosticActive && root.service)
+                    root.service.cancelDiagnostics();
                 root.requestClose();
+            }
         }
 
         FocusScope {
             anchors.fill: parent
             focus: true
+            Keys.priority: Keys.BeforeItem
             Keys.onPressed: function (event) {
-                if (event.key === Qt.Key_PageDown) {
+                if (cancelDialog.opened && cancelDialog.handleKey(event)) {
+                    event.accepted = true;
+                } else if (cancelDialog.opened && event.key === Qt.Key_Space) {
+                    if (cancelDialog.selectedIndex === 0)
+                        cancelDialog.canceled();
+                    else
+                        cancelDialog.confirmed();
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_PageDown) {
                     root.scrollContent(1, true);
                     event.accepted = true;
                 } else if (event.key === Qt.Key_PageUp) {
@@ -358,12 +489,15 @@ Item {
             Ui.PanelKeyCatcher {
                 id: keyCatcher
                 anchors.fill: parent
+                blocked: cancelDialog.opened
                 onMoveRequested: function (dx, dy) {
                     root.handleNavigation(dx, dy);
                 }
                 onTabRequested: function (direction) {
                     root.moveFocusRegion(direction);
                 }
+                onActivateRequested: if (diagnosticTray.visible)
+                    diagnosticTray.activateCurrentAction()
                 onCloseRequested: root.handleCloseRequest()
 
                 Column {
@@ -425,6 +559,7 @@ Item {
                             foreground: root.foreground
                             background: root.background
                             fontFamily: root.fontFamily
+                            opacity: root.diagnosticSessionOpen ? 0.55 : 1
                             onSelected: function (controllerId) {
                                 root.selectController(controllerId);
                             }
@@ -437,8 +572,12 @@ Item {
                         height: Math.max(0, frame.height - fixedHeader.height - frame.spacing)
 
                         Row {
+                            id: mainPanes
                             visible: !!root.controller
-                            anchors.fill: parent
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            height: Math.max(0, parent.height - (diagnosticTray.visible ? diagnosticTray.height + Style.space(12) : 0))
                             spacing: Style.space(18)
 
                             ScrollView {
@@ -659,7 +798,8 @@ Item {
 
                         Column {
                             visible: !root.controller
-                            anchors.centerIn: parent
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.verticalCenter: mainPanes.verticalCenter
                             width: Math.min(parent.width, Style.space(520))
                             spacing: Style.space(8)
 
@@ -686,7 +826,48 @@ Item {
                                 wrapMode: Text.WordWrap
                             }
                         }
+
+                        Components.DiagnosticTray {
+                            id: diagnosticTray
+                            visible: !!root.controller || root.diagnosticSessionOpen
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.bottom: parent.bottom
+                            service: root.service
+                            controller: root.controller
+                            profile: root.controllerProfile
+                            exportMessage: root.exportMessage
+                            foreground: root.foreground
+                            background: root.background
+                            fontFamily: root.fontFamily
+                            enabled: !cancelDialog.opened
+                            onCancelRequested: root.showCancelConfirmation()
+                            onExportRequested: root.exportDiagnosticReport()
+                        }
                     }
+                }
+            }
+
+            Ui.ConfirmDialog {
+                id: cancelDialog
+                anchors.fill: parent
+                z: 10
+                message: "End this diagnostic session and review the incomplete results?"
+                cancelText: "Resume"
+                confirmText: "End test"
+                background: root.background
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                focus: opened
+                onOpenedChanged: {
+                    if (opened)
+                        forceActiveFocus();
+                    else if (root.diagnosticSessionOpen)
+                        diagnosticTray.focusCurrentAction();
+                }
+                onCanceled: opened = false
+                onConfirmed: {
+                    root.confirmDiagnosticCancel();
                 }
             }
         }

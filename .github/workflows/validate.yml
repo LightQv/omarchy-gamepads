@@ -46,7 +46,7 @@ jobs:
           python -m unittest discover -s plugin/tests -v
 
       - name: Run model tests
-        run: node --test plugin/tests/model.test.js plugin/tests/profile.test.js
+        run: node --test plugin/tests/model.test.js plugin/tests/profile.test.js plugin/tests/diagnostics.test.js
 
       - name: Test window placement
         run: bash plugin/tests/test_window_placement.sh

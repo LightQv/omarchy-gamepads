@@ -30,6 +30,19 @@ test("resolves the Switch Pro profile and semantic labels", () => {
   assert.equal(profile.semanticParts.south, "button_b");
 });
 
+test("provides valid profile-owned diagnostic thresholds", () => {
+  const thresholds = SwitchPro.profile.thresholds;
+  assert.deepEqual(Object.keys(thresholds).sort(), [
+    "baselineDurationMs", "centerOffsetWarning", "digitalTriggerPress",
+    "digitalTriggerRelease", "minimumNegativeRange", "minimumPositiveRange",
+    "movementDetection", "neutralJitterWarning"
+  ]);
+  assert.equal(Registry.validateProfile(SwitchPro.profile), true);
+  assert.ok(thresholds.digitalTriggerRelease < thresholds.digitalTriggerPress);
+  assert.ok(thresholds.movementDetection < thresholds.minimumPositiveRange);
+  assert.ok(thresholds.movementDetection < thresholds.minimumNegativeRange);
+});
+
 test("returns no profile for an unknown SDL type", () => {
   assert.equal(Registry.profileFor({
     sdlType: "xboxone", family: "xbox", vendorId: "045e", productId: "02ea"
@@ -63,4 +76,28 @@ test("rejects malformed profile contracts", () => {
   });
   assert.equal(Registry.validateProfile(productOnly), false);
   assert.equal(Registry.validateProfile(SwitchPro.profile), true);
+});
+
+test("rejects malformed or unsafe diagnostic thresholds", () => {
+  function withThresholds(changes) {
+    return Object.assign({}, SwitchPro.profile, {
+      thresholds: Object.assign({}, SwitchPro.profile.thresholds, changes)
+    });
+  }
+
+  assert.equal(Registry.validateProfile(withThresholds({ centerOffsetWarning: NaN })), false);
+  assert.equal(Registry.validateProfile(withThresholds({ neutralJitterWarning: Infinity })), false);
+  assert.equal(Registry.validateProfile(withThresholds({ movementDetection: 1.01 })), false);
+  assert.equal(Registry.validateProfile(withThresholds({ baselineDurationMs: 999 })), false);
+  assert.equal(Registry.validateProfile(withThresholds({
+    digitalTriggerRelease: SwitchPro.profile.thresholds.digitalTriggerPress
+  })), false);
+  assert.equal(Registry.validateProfile(withThresholds({
+    movementDetection: SwitchPro.profile.thresholds.minimumPositiveRange
+  })), false);
+
+  const missing = withThresholds({});
+  delete missing.thresholds.minimumNegativeRange;
+  assert.equal(Registry.validateProfile(missing), false);
+  assert.equal(Registry.validateProfile(withThresholds({ unexpected: 0.1 })), false);
 });

@@ -13,3 +13,4 @@ All notable changes to this project will be documented here.
 - Add physical-controller tabs, validated Switch Pro profiles, and unified live input.
 - Add hotplug-safe selection and visible selected-controller streaming.
 - Refine Details into persistent information and visual panes with monitor-aware sizing for guided diagnostics and 3D.
+- Add profile-driven guided diagnostics, reviewable status results, deterministic fixtures, and explicit privacy-safe report export.

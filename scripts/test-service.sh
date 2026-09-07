@@ -47,5 +47,6 @@ run_case limit ServiceLimitSmoke.qml replay-service-helper.py SERVICE_LIMIT_SMOK
 run_case startup-error ServiceStartupErrorSmoke.qml startup-error-service-helper.py SERVICE_STARTUP_ERROR_SMOKE_OK
 run_case runtime-exit ServiceRuntimeExitSmoke.qml runtime-warning-exit-service-helper.py SERVICE_RUNTIME_EXIT_SMOKE_OK
 run_case streaming ServiceStreamingSmoke.qml streaming-service-helper.py SERVICE_STREAMING_SMOKE_OK
+run_case diagnostics ServiceDiagnosticsSmoke.qml replay-service-helper.py SERVICE_DIAGNOSTICS_SMOKE_OK
 
 printf '%s\n' "Service replay and supervision smoke tests passed."

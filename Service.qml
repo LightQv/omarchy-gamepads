@@ -1,6 +1,8 @@
 import QtQuick
 import Quickshell.Io
+import "Diagnostics.js" as Diagnostics
 import "Model.js" as Model
+import "profiles/ProfileRegistry.js" as Profiles
 
 // Tooling cannot resolve Quickshell's QProcess::ExitStatus signal parameter.
 // qmllint disable signal-handler-parameters
@@ -12,6 +14,7 @@ QtObject {
     property var manifest: null
 
     property var modelState: Model.initialState()
+    property var diagnosticState: Diagnostics.initialState()
     property string health: "starting"
     property string supervisorError: ""
     property string stderrDiagnostic: ""
@@ -49,6 +52,7 @@ QtObject {
     readonly property bool ready: health === "ready"
     readonly property bool dependencyMissing: health === "dependency-error"
     readonly property bool backendWarning: ready && lastErrorCode !== ""
+    readonly property bool diagnosticActive: ["baseline_waiting", "baseline_capturing", "digital", "analog_left", "analog_right"].indexOf(diagnosticState.phase) !== -1
     readonly property var helperCommand: {
         if (!manifest)
             return [];
@@ -66,6 +70,7 @@ QtObject {
             supervisorError = "Plugin source directory is unavailable.";
             return;
         }
+        interruptDiagnostics();
         expectedStop = false;
         startupTimedOut = false;
         supervisorError = "";
@@ -98,6 +103,7 @@ QtObject {
         startupTimer.stop();
         stableTimer.stop();
         expectedStop = true;
+        interruptDiagnostics();
         acceptingOutput = false;
         if (!helper.running) {
             health = "stopped";
@@ -110,6 +116,7 @@ QtObject {
     }
 
     function retry() {
+        interruptDiagnostics();
         permanentFailure = false;
         restartAttempt = 0;
         restartHistory = [];
@@ -126,6 +133,7 @@ QtObject {
     }
 
     function scheduleRestart(reason) {
+        interruptDiagnostics();
         modelState = Model.initialState();
         controllerTabs = [];
         if (permanentFailure || expectedStop)
@@ -167,7 +175,7 @@ QtObject {
         messagesThisWindow++;
         var lineBytes = utf8Length(line);
         bytesThisWindow += lineBytes;
-        if (messagesThisWindow > 4096 || bytesThisWindow > 2097152) {
+        if (messagesThisWindow > 512 || bytesThisWindow > 1048576) {
             quarantineHelper("Controller helper exceeded its output budget.");
             return;
         }
@@ -188,8 +196,14 @@ QtObject {
             return;
         }
         modelState = result.state;
+        if (message.type === "input")
+            diagnosticState = Diagnostics.ingest(diagnosticState, message);
+        else if (message.type === "removed")
+            diagnosticState = Diagnostics.disconnect(diagnosticState, message.id);
         if (message.type === "snapshot" || message.type === "controller" || message.type === "removed")
             refreshControllerTabs();
+        if (message.type === "snapshot" || message.type === "controller" || message.type === "removed")
+            syncDiagnosticConnection();
         acceptedMessages++;
         lastMessageMs = Date.now();
         protocolError = "";
@@ -337,6 +351,79 @@ QtObject {
 
     function selectController(id) {
         modelState = Model.selectController(modelState, String(id || ""));
+    }
+
+    function beginDiagnostics(controller, profile) {
+        if (!ready || !helper.running || !acceptingOutput || ["idle", "review"].indexOf(diagnosticState.phase) === -1)
+            return false;
+        var requestedId = controller && typeof controller === "object" ? String(controller.id || "") : String(controller || "");
+        var connectedController = null;
+        for (var i = 0; i < controllers.length; i++) {
+            if (controllers[i].id === requestedId) {
+                connectedController = controllers[i];
+                break;
+            }
+        }
+        var validatedProfile = Profiles.profileFor(connectedController);
+        if (!connectedController || !validatedProfile || profile && profile.id !== validatedProfile.id)
+            return false;
+        var next = Diagnostics.startSession(connectedController, validatedProfile);
+        if (next.phase !== "baseline_waiting")
+            return false;
+        diagnosticState = next;
+        return true;
+    }
+
+    function beginDiagnosticBaseline() {
+        diagnosticState = Diagnostics.startBaseline(diagnosticState);
+    }
+
+    function finishDiagnosticBaseline() {
+        diagnosticState = Diagnostics.finishBaseline(diagnosticState);
+    }
+
+    function advanceDiagnostics() {
+        diagnosticState = Diagnostics.advancePhase(diagnosticState);
+    }
+
+    function finalizeDiagnostics() {
+        diagnosticState = Diagnostics.finalize(diagnosticState);
+    }
+
+    function cancelDiagnostics() {
+        diagnosticState = Diagnostics.cancelSession(diagnosticState);
+    }
+
+    function interruptDiagnostics() {
+        if (diagnosticState.phase === "idle" || diagnosticState.controllerId === "")
+            return;
+        diagnosticState = Diagnostics.disconnect(diagnosticState, diagnosticState.controllerId);
+    }
+
+    function retryDiagnostic(control) {
+        diagnosticState = Diagnostics.retryControl(diagnosticState, String(control || ""));
+    }
+
+    function resetDiagnostics() {
+        diagnosticState = Diagnostics.initialState();
+    }
+
+    function diagnosticReport(metadata) {
+        return Diagnostics.createReport(diagnosticState, metadata);
+    }
+
+    function diagnosticTextReport(metadata) {
+        return Diagnostics.formatReport(diagnosticState, metadata);
+    }
+
+    function syncDiagnosticConnection() {
+        if (diagnosticState.phase === "idle" || diagnosticState.controllerId === "")
+            return;
+        for (var i = 0; i < controllers.length; i++) {
+            if (controllers[i].id === diagnosticState.controllerId)
+                return;
+        }
+        diagnosticState = Diagnostics.disconnect(diagnosticState, diagnosticState.controllerId);
     }
 
     function refreshControllerTabs() {

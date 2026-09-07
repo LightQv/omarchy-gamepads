@@ -2,7 +2,7 @@
 
 Omarchy Gamepads is an Omarchy shell plugin for controller vitals, interactive visualization, and guided input diagnostics. Nintendo Switch Pro Controller support is the initial target.
 
-The repository currently contains the protocol version 1 backend, shared QML service, native compact bar panel, and a floating Details window with physical-controller tabs, a unified profile-aware information and visual workspace, live textual input, and a generic unsupported-profile state. Guided diagnostics and the interactive 3D model remain under development.
+The repository currently contains the protocol version 1 backend, shared QML service, native compact bar panel, and a floating Details window with physical-controller tabs, a unified profile-aware workspace, live textual input, and guided diagnostics. The interactive 3D model remains under development.
 
 ## Installation
 
@@ -39,7 +39,11 @@ The helper communicates using newline-delimited JSON on standard input and outpu
 
 ## Controller Profiles
 
-Detailed controller behavior is isolated in `profiles/`. The initial Switch Pro profile defines SDL matching, Nintendo-style labels, expected controls, semantic visual-part names, and the visual component contract. SDL-recognized controllers without a detailed profile still receive a tab and generic vitals. See [`docs/controller-profile.md`](docs/controller-profile.md).
+Detailed controller behavior is isolated in `profiles/`. The initial Switch Pro profile defines SDL matching, Nintendo-style labels, expected controls, semantic visual-part names, provisional diagnostic thresholds, and the visual component contract. SDL-recognized controllers without a detailed profile still receive a tab and generic vitals. See [`docs/controller-profile.md`](docs/controller-profile.md).
+
+## Guided Diagnostics
+
+The full-width Details tray captures a neutral baseline, verifies post-baseline press and release edges, measures each stick direction independently, and presents a review before export. Results use `passed`, `warning`, `not_detected`, `incomplete`, and `unavailable`; they do not assert that hardware is broken. Export is always explicit and atomically publishes each private JSON/Markdown report pair in a unique directory under `~/.local/state/omarchy-gamepads/reports/`.
 
 ## Validation
 
@@ -49,12 +53,12 @@ scripts/lint-qml.sh
 scripts/test-service.sh
 scripts/test-panel.sh
 bash tests/test_window_placement.sh
-node --test tests/model.test.js tests/profile.test.js
+node --test tests/model.test.js tests/profile.test.js tests/diagnostics.test.js
 python -m compileall -q scripts tests
 python -m unittest discover -s tests -v
 ```
 
-The service and panel smoke tests require Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`. They cover selected-controller streaming, tab hotplug behavior, persistent profile visuals, unsupported profiles, unified live input, and host-close cleanup. Details-window placement uses the `hyprctl` and `jq` tools included with Omarchy to float, center, and move the existing window to the active workspace; its `960x680` target is capped to the focused monitor's usable logical area, and its process-scoped pre-map rule is disabled immediately after placement.
+The service and panel smoke tests require Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`. They cover selected-controller streaming, tab hotplug behavior, persistent profile visuals, diagnostic lifecycle and disconnect handling, unsupported profiles, unified live input, and host-close cleanup. Details-window placement uses the `hyprctl` and `jq` tools included with Omarchy to float, center, and move the existing window to the active workspace; its `960x680` target is capped to the focused monitor's usable logical area, and its process-scoped pre-map rule is disabled immediately after placement.
 
 ## Security
 
@@ -64,6 +68,8 @@ The service and panel smoke tests require Quickshell and an installed Omarchy sh
 - SDL decides which devices qualify as gamepads.
 - The helper does not query serial numbers or Bluetooth addresses, and its protocol has no fields for persistent identifiers or raw device paths.
 - Device-provided product names are bounded and redacted for recognizable private paths and addresses, but should not be treated as anonymous if a vendor embeds unique text.
+- Reports are projected through a strict allowlist and omit session IDs, serials, addresses, device paths, usernames, home paths, and unrelated controllers.
+- The report directory is created only after explicit export; directories use mode `0700` and atomically written files use mode `0600`.
 - PySDL3 network checks, documentation generation, and native-library downloads are disabled before import.
 
 ## License

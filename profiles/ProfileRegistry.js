@@ -8,6 +8,11 @@ var CONTROL_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 var PART_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
 var VIEW_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_\/-]{0,126}\.qml$/;
 var UNSAFE_TEXT_PATTERN = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/;
+var THRESHOLD_KEYS = [
+  "baselineDurationMs", "digitalTriggerPress", "digitalTriggerRelease",
+  "centerOffsetWarning", "neutralJitterWarning", "minimumPositiveRange",
+  "minimumNegativeRange", "movementDetection"
+];
 var registeredProfiles = [SwitchPro.profile];
 
 function validStringList(values, pattern) {
@@ -41,6 +46,27 @@ function validateMatcher(matcher) {
   return familyConstrained;
 }
 
+function validateThresholds(thresholds) {
+  if (!thresholds || typeof thresholds !== "object" || Array.isArray(thresholds)) return false;
+  var keys = Object.keys(thresholds);
+  if (keys.length !== THRESHOLD_KEYS.length) return false;
+  for (var i = 0; i < THRESHOLD_KEYS.length; i++) {
+    var key = THRESHOLD_KEYS[i];
+    if (!Object.prototype.hasOwnProperty.call(thresholds, key)) return false;
+    if (typeof thresholds[key] !== "number" || !isFinite(thresholds[key])) return false;
+  }
+  if (thresholds.baselineDurationMs < 1000 || thresholds.baselineDurationMs > 2000
+      || Math.floor(thresholds.baselineDurationMs) !== thresholds.baselineDurationMs) return false;
+  for (var normalizedIndex = 1; normalizedIndex < THRESHOLD_KEYS.length; normalizedIndex++) {
+    var value = thresholds[THRESHOLD_KEYS[normalizedIndex]];
+    if (value < 0 || value > 1) return false;
+  }
+  if (thresholds.digitalTriggerRelease >= thresholds.digitalTriggerPress) return false;
+  if (thresholds.movementDetection >= thresholds.minimumPositiveRange
+      || thresholds.movementDetection >= thresholds.minimumNegativeRange) return false;
+  return true;
+}
+
 function validateProfile(profile) {
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) return false;
   if (typeof profile.id !== "string" || !PROFILE_ID_PATTERN.test(profile.id)) return false;
@@ -57,7 +83,7 @@ function validateProfile(profile) {
   if (!profile.labels || typeof profile.labels !== "object" || Array.isArray(profile.labels)) return false;
   if (!profile.semanticParts || typeof profile.semanticParts !== "object" || Array.isArray(profile.semanticParts)) return false;
   if (!profile.animation || typeof profile.animation !== "object" || Array.isArray(profile.animation)) return false;
-  if (!profile.thresholds || typeof profile.thresholds !== "object" || Array.isArray(profile.thresholds)) return false;
+  if (!validateThresholds(profile.thresholds)) return false;
   var labelKeys = Object.keys(profile.labels);
   for (var labelIndex = 0; labelIndex < labelKeys.length; labelIndex++) {
     var label = profile.labels[labelKeys[labelIndex]];

@@ -13,10 +13,16 @@ Controller profiles describe controller-family behavior without changing the SDL
 - `viewComponent`: bundled QML component below `profiles/`.
 - `semanticParts`: mapping from every expected control to a stable visual part name.
 - `animation`: profile-specific visual parameters.
-- `thresholds`: profile-specific diagnostic thresholds; Phase 4 leaves these empty.
+- `thresholds`: profile-specific diagnostic thresholds.
 - `knownLimitations`: concise profile limitations.
 
-All expected controls must have semantic mappings. Registry validation rejects malformed IDs, unsafe labels, parent-directory view paths, incomplete mappings, and ambiguous equal-specificity matches.
+All expected controls must have semantic mappings. Registry validation rejects malformed IDs, unsafe labels, parent-directory view paths, incomplete mappings, malformed thresholds, and ambiguous equal-specificity matches.
+
+## Diagnostic Thresholds
+
+Threshold values are SDL-normalized and profile-owned. The required schema contains `baselineDurationMs`, digital trigger press/release hysteresis, center-offset and neutral-jitter warning levels, independent positive and negative minimum ranges, and a movement-detection threshold. The registry requires a one-to-two-second integer baseline, finite normalized values, trigger release below trigger press, and movement detection below both range targets.
+
+The initial Switch Pro values are conservative and provisional. They only classify observations from the current test and never modify SDL or system calibration. Physical USB and Bluetooth testing should refine them over time.
 
 ## Matching
 

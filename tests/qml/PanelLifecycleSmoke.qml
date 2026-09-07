@@ -1,6 +1,11 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import Quickshell
 import "Plugin" as Plugin
+import "Plugin/Diagnostics.js" as Diagnostics
+
+// qmllint disable unqualified
 
 ShellRoot {
     id: root
@@ -15,6 +20,18 @@ ShellRoot {
             return;
         valid = false;
         failures += (failures === "" ? "" : ", ") + label;
+    }
+
+    function initialDiagnosticState() {
+        return Diagnostics.initialState();
+    }
+
+    function startDiagnosticSession(controller, profile) {
+        return Diagnostics.startSession(controller, profile);
+    }
+
+    function cancelDiagnosticSession(state) {
+        return Diagnostics.cancelSession(state);
     }
 
     function controller(id, name, sdlType, family) {
@@ -63,6 +80,7 @@ ShellRoot {
         property bool backendWarning: false
         property string health: "ready"
         property string lastErrorMessage: ""
+        property var diagnosticState: root.initialDiagnosticState()
 
         function tabProjection() {
             return controllers.map(function (controller) {
@@ -152,6 +170,19 @@ ShellRoot {
             }
             return true;
         }
+
+        function beginDiagnostics(controller, profile) {
+            diagnosticState = root.startDiagnosticSession(controller, profile);
+            return diagnosticState.phase === "baseline_waiting";
+        }
+
+        function cancelDiagnostics() {
+            diagnosticState = root.cancelDiagnosticSession(diagnosticState);
+        }
+
+        function resetDiagnostics() {
+            diagnosticState = root.initialDiagnosticState();
+        }
     }
 
     QtObject {
@@ -193,6 +224,20 @@ ShellRoot {
                 root.expect(panel.informationFits, "default information fit");
                 root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
                 root.expect(panel.pressedButtonsLabel() === "None", "live button summary");
+                root.expect(fakeService.beginDiagnostics(panel.controller, panel.controllerProfile), "diagnostic start");
+                root.expect(panel.diagnosticPhase === "baseline_waiting", "diagnostic waiting phase");
+                panel.selectController("11");
+                root.expect(fakeService.selectedId === "12", "diagnostic selection lock");
+                panel.open('{"view":"gamepads","controllerId":"11"}');
+                root.expect(fakeService.selectedId === "12", "diagnostic payload selection lock");
+                fakeService.selectController("11");
+                root.expect(fakeService.streamingId === "12", "diagnostic streaming binding");
+                fakeService.selectController("12");
+                panel.handleCloseRequest();
+                root.expect(panel.opened && panel.cancelConfirmationOpen, "diagnostic close confirmation");
+                panel.confirmDiagnosticCancel();
+                root.expect(panel.diagnosticPhase === "review" && fakeService.diagnosticState.status === "incomplete", "diagnostic cancel review");
+                fakeService.resetDiagnostics();
                 panel.handleNavigation(-1, 0);
                 root.expect(fakeService.selectedId === "11", "keyboard device navigation");
                 root.phase = 1;
@@ -248,8 +293,9 @@ ShellRoot {
             }
             root.expect(fakeService.selectedId === "21", "reopen selection");
             root.expect(panel.streamingControllerId === "21", "reopen streaming");
-            panel.handleCloseRequest();
-            root.expect(!panel.opened && root.hiddenId === "lightqv.gamepads", "reopen host close");
+            root.expect(fakeService.beginDiagnostics(panel.controller, panel.controllerProfile), "reopen diagnostic start");
+            panel.close();
+            root.expect(!panel.opened && fakeService.diagnosticState.phase === "review", "host close ends diagnostic");
             root.expect(fakeService.streamingId === "", "reopen cleanup");
             console.log(root.valid ? "PANEL_LIFECYCLE_SMOKE_OK" : "PANEL_LIFECYCLE_SMOKE_FAILED: " + root.failures);
             Qt.quit();
