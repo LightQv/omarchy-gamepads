@@ -159,6 +159,42 @@ test("accepts later snapshots as heartbeat replacements", () => {
   assert.equal(result.state.selectedId, "3");
 });
 
+test("replacement snapshots choose the neighboring controller", () => {
+  let state = reduceAll(fixture("two-switch-pro.ndjson").slice(0, 2));
+  const base = state.controllers.map(controller => JSON.parse(JSON.stringify(controller)));
+  const third = JSON.parse(JSON.stringify(base[1]));
+  third.id = "13";
+  third.name = "Third Controller";
+  let result = Model.reduceMessage(state, {
+    type: "snapshot", sequence: 2, controllers: [base[0], base[1], third]
+  });
+  state = Model.selectController(result.state, "12");
+  result = Model.reduceMessage(state, {
+    type: "snapshot", sequence: 3, controllers: [base[0], third]
+  });
+  assert.equal(result.accepted, true);
+  assert.equal(result.state.selectedId, "13");
+
+  const inserted = JSON.parse(JSON.stringify(base[0]));
+  inserted.id = "14";
+  inserted.name = "New Controller";
+  state = Model.selectController(Model.reduceMessage(state, {
+    type: "snapshot", sequence: 4, controllers: [base[0], base[1], third]
+  }).state, "12");
+  result = Model.reduceMessage(state, {
+    type: "snapshot", sequence: 5, controllers: [inserted, third, base[0]]
+  });
+  assert.equal(result.state.selectedId, "13");
+});
+
+test("duplicate controller names keep distinct session identities", () => {
+  let state = reduceAll(fixture("two-switch-pro.ndjson").slice(0, 2));
+  assert.equal(state.controllers[0].name, state.controllers[1].name);
+  assert.notEqual(state.controllers[0].id, state.controllers[1].id);
+  state = Model.selectController(state, "12");
+  assert.equal(Model.selectedController(state).id, "12");
+});
+
 test("surfaces permanent dependency errors", () => {
   const state = reduceAll(fixture("dependency-error.ndjson"));
   assert.equal(state.status, "dependency-error");

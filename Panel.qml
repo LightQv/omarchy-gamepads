@@ -7,6 +7,8 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui as Ui
 import "Model.js" as Model
+import "profiles/ProfileRegistry.js" as Profiles
+import "components" as Components
 
 // Tooling cannot resolve Quickshell's QProcess::ExitStatus signal parameter.
 // qmllint disable signal-handler-parameters
@@ -24,9 +26,22 @@ Item {
     property int ruleGeneration: 0
     property string activeRuleToken: ""
     property var pendingCleanupTokens: []
+    property string currentMode: "overview"
+    property int focusRegion: 0
+    property var registeredStreamingService: null
+    property string registeredStreamingId: ""
+    property var visibleAxisNames: []
 
     readonly property bool opened: detailsWindow.visible
     readonly property var controller: service ? service.selectedController : null
+    readonly property string selectedControllerId: controller ? String(controller.id) : ""
+    readonly property var controllerTabs: service ? service.controllerTabs : []
+    readonly property var controllerProfile: Profiles.profileFor(controller)
+    readonly property int tabCount: controllerTabs.length
+    readonly property string selectedProfileId: controllerProfile ? controllerProfile.id : ""
+    readonly property string mode: currentMode
+    readonly property string streamingControllerId: registeredStreamingId
+    readonly property real scrollPosition: scroll.contentItem ? scroll.contentItem.contentY : 0
     readonly property string pluginId: manifest && manifest.id ? manifest.id : "lightqv.gamepads"
     readonly property color foreground: Color.foreground
     readonly property color background: Color.background
@@ -36,6 +51,7 @@ Item {
     readonly property string ruleInstanceToken: Math.floor(Date.now()).toString(36) + "-" + Math.floor(Math.random() * 2147483647).toString(36)
 
     Component.onDestruction: {
+        clearStreamingRequest();
         var tokens = pendingCleanupTokens.slice();
         if (ruleCleanupProcess.running && tokens.indexOf(ruleCleanupProcess.ruleToken) === -1)
             tokens.push(ruleCleanupProcess.ruleToken);
@@ -43,6 +59,18 @@ Item {
             tokens.push(activeRuleToken);
         if (tokens.length > 0)
             Quickshell.execDetached(scriptCommand("clear-details-window-rule", tokens.slice(0, 64)));
+    }
+
+    onOpenedChanged: syncStreamingRequest()
+    onServiceChanged: syncStreamingRequest()
+    onControllerChanged: {
+        syncStreamingRequest();
+        refreshAxisNames();
+    }
+    onSelectedControllerIdChanged: resetScroll()
+    onControllerProfileChanged: {
+        if (!controllerProfile)
+            currentMode = "overview";
     }
 
     function localPath(url) {
@@ -115,7 +143,7 @@ Item {
         Qt.callLater(function () {
             if (!detailsWindow.visible)
                 return;
-            keyCatcher.forceActiveFocus();
+            focusCurrentRegion();
         });
     }
 
@@ -143,9 +171,128 @@ Item {
             close();
     }
 
+    function handleCloseRequest() {
+        if (currentMode === "input-test") {
+            setMode("overview");
+            return;
+        }
+        requestClose();
+    }
+
     function cycleController(delta) {
         if (service && service.connectedCount > 1)
             service.cycleSelection(delta);
+    }
+
+    function selectController(controllerId) {
+        if (service && typeof service.selectController === "function")
+            service.selectController(controllerId);
+    }
+
+    function setMode(nextMode) {
+        if (nextMode !== "overview" && nextMode !== "input-test")
+            return false;
+        if (nextMode === "input-test" && !controllerProfile)
+            return false;
+        currentMode = nextMode;
+        resetScroll();
+        return true;
+    }
+
+    function modeOptions() {
+        var options = [
+            {
+                value: "overview",
+                label: "Overview",
+                icon: "󰋼"
+            }
+        ];
+        if (controllerProfile) {
+            options.push({
+                value: "input-test",
+                label: "Input Test",
+                icon: "󰐾"
+            });
+        }
+        return options;
+    }
+
+    function focusCurrentRegion() {
+        if (focusRegion === 0 && tabCount > 0)
+            controllerTabsControl.focusTabs();
+        else {
+            focusRegion = 1;
+            modeSelector.forceActiveFocus();
+        }
+    }
+
+    function moveFocusRegion(direction) {
+        if (tabCount === 0) {
+            focusRegion = 1;
+        } else {
+            var step = direction < 0 ? -1 : 1;
+            focusRegion = (focusRegion + step + 2) % 2;
+        }
+        focusCurrentRegion();
+    }
+
+    function scrollContent(direction, page) {
+        if (!scroll.contentItem)
+            return;
+        var amount = page ? Math.max(Style.space(80), scroll.height * 0.8) : Style.space(48);
+        var maximum = Math.max(0, scroll.contentItem.contentHeight - scroll.contentItem.height);
+        scroll.contentItem.contentY = Math.max(0, Math.min(maximum, scroll.contentItem.contentY + (direction < 0 ? -amount : amount)));
+    }
+
+    function resetScroll() {
+        Qt.callLater(function () {
+            if (scroll.contentItem)
+                scroll.contentItem.contentY = 0;
+        });
+    }
+
+    function clearStreamingRequest() {
+        if (registeredStreamingService && typeof registeredStreamingService.setStreamingRequest === "function")
+            registeredStreamingService.setStreamingRequest("floating-panel", null);
+        registeredStreamingService = null;
+        registeredStreamingId = "";
+    }
+
+    function syncStreamingRequest() {
+        var targetId = opened && controller ? String(controller.id) : "";
+        if (registeredStreamingService && (registeredStreamingService !== service || targetId === ""))
+            registeredStreamingService.setStreamingRequest("floating-panel", null);
+        if (!service || typeof service.setStreamingRequest !== "function" || targetId === "") {
+            registeredStreamingService = null;
+            registeredStreamingId = "";
+            return;
+        }
+        if (registeredStreamingService !== service || registeredStreamingId !== targetId)
+            service.setStreamingRequest("floating-panel", [targetId]);
+        registeredStreamingService = service;
+        registeredStreamingId = targetId;
+    }
+
+    function pressedButtonsLabel() {
+        if (!controller)
+            return "None";
+        var pressed = [];
+        var names = Object.keys(controller.buttons || {});
+        for (var i = 0; i < names.length; i++) {
+            if (controller.buttons[names[i]])
+                pressed.push(Profiles.labelFor(controllerProfile, names[i]));
+        }
+        return pressed.length > 0 ? pressed.join(", ") : "None";
+    }
+
+    function refreshAxisNames() {
+        var names = controller && controller.capabilities && controller.capabilities.axes ? controller.capabilities.axes : [];
+        if (JSON.stringify(names) !== JSON.stringify(visibleAxisNames))
+            visibleAxisNames = names.slice();
+    }
+
+    function axisValue(name) {
+        return controller && controller.axes ? Number(controller.axes[name] || 0).toFixed(2) : "0.00";
     }
 
     function connectionSummary() {
@@ -224,18 +371,36 @@ Item {
         FocusScope {
             anchors.fill: parent
             focus: true
+            Keys.onPressed: function (event) {
+                if (event.key === Qt.Key_PageDown) {
+                    root.scrollContent(1, true);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_PageUp) {
+                    root.scrollContent(-1, true);
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_Home) {
+                    if (scroll.contentItem)
+                        scroll.contentItem.contentY = 0;
+                    event.accepted = true;
+                } else if (event.key === Qt.Key_End) {
+                    root.scrollContent(1, true);
+                    if (scroll.contentItem)
+                        scroll.contentItem.contentY = Math.max(0, scroll.contentItem.contentHeight - scroll.contentItem.height);
+                    event.accepted = true;
+                }
+            }
 
             Ui.PanelKeyCatcher {
                 id: keyCatcher
                 anchors.fill: parent
                 onMoveRequested: function (dx, dy) {
-                    if (dx !== 0)
-                        root.cycleController(dx);
+                    if (dy !== 0)
+                        root.scrollContent(dy, false);
                 }
                 onTabRequested: function (direction) {
-                    root.cycleController(direction);
+                    root.moveFocusRegion(direction);
                 }
-                onCloseRequested: root.requestClose()
+                onCloseRequested: root.handleCloseRequest()
 
                 Column {
                     id: frame
@@ -286,6 +451,33 @@ Item {
                         Ui.PanelSeparator {
                             foreground: root.foreground
                         }
+
+                        Components.ControllerTabs {
+                            id: controllerTabsControl
+                            visible: root.tabCount > 0
+                            width: parent.width
+                            controllers: root.controllerTabs
+                            selectedId: root.service ? root.service.selectedId : ""
+                            foreground: root.foreground
+                            background: root.background
+                            fontFamily: root.fontFamily
+                            onSelected: function (controllerId) {
+                                root.selectController(controllerId);
+                            }
+                        }
+
+                        Ui.ButtonGroup {
+                            id: modeSelector
+                            visible: !!root.controller
+                            options: root.modeOptions()
+                            value: root.currentMode
+                            foreground: root.foreground
+                            background: root.background
+                            fontFamily: root.fontFamily
+                            onChanged: function (value) {
+                                root.setMode(value);
+                            }
+                        }
                     }
 
                     ScrollView {
@@ -306,69 +498,10 @@ Item {
                                 width: parent.width
                                 spacing: Style.space(8)
 
-                                Item {
-                                    width: parent.width
-                                    implicitHeight: Math.max(controllerHeader.implicitHeight, controllerActions.implicitHeight)
-
-                                    Ui.PanelSectionHeader {
-                                        id: controllerHeader
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: "CONTROLLER"
-                                        foreground: root.foreground
-                                        fontFamily: root.fontFamily
-                                    }
-
-                                    Row {
-                                        id: controllerActions
-                                        visible: root.service && root.service.connectedCount > 1
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: Style.space(6)
-
-                                        Ui.PanelActionButton {
-                                            iconText: "󰅁"
-                                            tooltipText: "Previous controller"
-                                            foreground: root.foreground
-                                            fontFamily: root.fontFamily
-                                            focusable: false
-                                            Accessible.role: Accessible.Button
-                                            Accessible.name: tooltipText
-                                            Accessible.onPressAction: root.cycleController(-1)
-                                            onClicked: root.cycleController(-1)
-                                        }
-
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: {
-                                                if (!root.service || !root.controller)
-                                                    return "";
-                                                var index = 0;
-                                                for (var i = 0; i < root.service.controllers.length; i++) {
-                                                    if (root.service.controllers[i].id === root.controller.id) {
-                                                        index = i;
-                                                        break;
-                                                    }
-                                                }
-                                                return (index + 1) + " / " + root.service.connectedCount;
-                                            }
-                                            color: Qt.darker(root.foreground, 1.4)
-                                            font.family: root.fontFamily
-                                            font.pixelSize: Style.font.caption
-                                        }
-
-                                        Ui.PanelActionButton {
-                                            iconText: "󰅂"
-                                            tooltipText: "Next controller"
-                                            foreground: root.foreground
-                                            fontFamily: root.fontFamily
-                                            focusable: false
-                                            Accessible.role: Accessible.Button
-                                            Accessible.name: tooltipText
-                                            Accessible.onPressAction: root.cycleController(1)
-                                            onClicked: root.cycleController(1)
-                                        }
-                                    }
+                                Ui.PanelSectionHeader {
+                                    text: "SELECTED CONTROLLER"
+                                    foreground: root.foreground
+                                    fontFamily: root.fontFamily
                                 }
 
                                 Ui.CursorSurface {
@@ -430,7 +563,7 @@ Item {
                             }
 
                             Column {
-                                visible: !!root.controller
+                                visible: !!root.controller && root.currentMode === "overview"
                                 width: parent.width
                                 spacing: Style.space(8)
 
@@ -438,6 +571,27 @@ Item {
                                     text: "OVERVIEW"
                                     foreground: root.foreground
                                     fontFamily: root.fontFamily
+                                }
+
+                                Loader {
+                                    id: profileView
+                                    visible: !!root.controllerProfile
+                                    width: parent.width
+                                    active: root.opened && root.currentMode === "overview" && !!root.controllerProfile
+                                    source: root.controllerProfile ? Qt.resolvedUrl("profiles/" + root.controllerProfile.viewComponent) : ""
+                                    onLoaded: {
+                                        if (!item)
+                                            return;
+                                        item.controller = Qt.binding(function () {
+                                            return root.controller;
+                                        });
+                                        item.foreground = Qt.binding(function () {
+                                            return root.foreground;
+                                        });
+                                        item.fontFamily = Qt.binding(function () {
+                                            return root.fontFamily;
+                                        });
+                                    }
                                 }
 
                                 DetailRow {
@@ -465,13 +619,119 @@ Item {
                                     label: "Controller family"
                                     value: root.controller && root.controller.family ? root.controller.family : "Unknown"
                                 }
+
+                                DetailRow {
+                                    width: parent.width
+                                    label: "Detailed profile"
+                                    value: root.controllerProfile ? root.controllerProfile.displayName : "Not available"
+                                }
+
+                                Ui.Button {
+                                    visible: !!root.controllerProfile
+                                    text: "Open Input Test"
+                                    iconText: "󰐾"
+                                    bordered: true
+                                    foreground: root.foreground
+                                    background: root.background
+                                    fontFamily: root.fontFamily
+                                    Accessible.role: Accessible.Button
+                                    Accessible.name: text
+                                    Accessible.onPressAction: root.setMode("input-test")
+                                    onClicked: root.setMode("input-test")
+                                }
+                            }
+
+                            Ui.CursorSurface {
+                                visible: !!root.controller && !root.controllerProfile
+                                width: parent.width
+                                implicitHeight: unsupportedContent.implicitHeight + Style.space(24)
+                                bordered: true
+                                foreground: root.foreground
+
+                                Column {
+                                    id: unsupportedContent
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.margins: Style.space(12)
+                                    spacing: Style.space(6)
+
+                                    Text {
+                                        width: parent.width
+                                        text: "Detailed profile unavailable"
+                                        color: root.foreground
+                                        font.family: root.fontFamily
+                                        font.pixelSize: Style.font.title
+                                        font.bold: true
+                                    }
+
+                                    Text {
+                                        width: parent.width
+                                        text: "This SDL-recognized controller keeps its vitals and controller tab, but does not yet have a visual or guided input-test profile."
+                                        color: Qt.darker(root.foreground, 1.35)
+                                        font.family: root.fontFamily
+                                        font.pixelSize: Style.font.bodySmall
+                                        wrapMode: Text.WordWrap
+                                    }
+                                }
+                            }
+
+                            Column {
+                                visible: !!root.controller && root.currentMode === "input-test" && !!root.controllerProfile
+                                width: parent.width
+                                spacing: Style.space(8)
+
+                                Ui.PanelSectionHeader {
+                                    text: "LIVE INPUT"
+                                    foreground: root.foreground
+                                    fontFamily: root.fontFamily
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: "Live input is active for this controller. Guided checks and diagnostic results are added in Phase 5."
+                                    color: Qt.darker(root.foreground, 1.35)
+                                    font.family: root.fontFamily
+                                    font.pixelSize: Style.font.bodySmall
+                                    wrapMode: Text.WordWrap
+                                }
+
+                                DetailRow {
+                                    width: parent.width
+                                    label: "Pressed buttons"
+                                    value: root.pressedButtonsLabel()
+                                }
+
+                                Repeater {
+                                    model: root.visibleAxisNames
+
+                                    delegate: DetailRow {
+                                        required property string modelData
+                                        width: content.width
+                                        label: Profiles.labelFor(root.controllerProfile, modelData)
+                                        value: root.axisValue(modelData)
+                                    }
+                                }
+
+                                Ui.Button {
+                                    text: "End Input Test"
+                                    iconText: "󰅖"
+                                    bordered: true
+                                    foreground: root.foreground
+                                    background: root.background
+                                    fontFamily: root.fontFamily
+                                    Accessible.role: Accessible.Button
+                                    Accessible.name: text
+                                    Accessible.onPressAction: root.setMode("overview")
+                                    onClicked: root.setMode("overview")
+                                }
                             }
 
                             Text {
                                 visible: !root.controller
                                 width: parent.width
                                 textFormat: Text.PlainText
-                                text: root.service ? "Connect a supported controller to view its details." : "The shared gamepad service is unavailable."
+                                text: root.service ? (root.service.health === "starting" || root.service.health === "restarting" ? "The gamepad backend is starting." : "No SDL-recognized gamepads are connected.") : "The shared gamepad service is unavailable."
                                 color: Qt.darker(root.foreground, 1.4)
                                 font.family: root.fontFamily
                                 font.pixelSize: Style.font.body

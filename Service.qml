@@ -25,6 +25,10 @@ QtObject {
     property bool startupTimedOut: false
     property bool acceptingOutput: false
     property var streamingRequests: ({})
+    property var controllerTabs: []
+    property string lastStreamingIdsKey: ""
+    property bool lastStreamingEnabled: false
+    property bool streamingStateSent: false
     property int messagesThisWindow: 0
     property int chunksThisWindow: 0
     property int bytesThisWindow: 0
@@ -78,6 +82,10 @@ QtObject {
         stdoutBufferBytes = 0;
         processExited = false;
         modelState = Model.initialState();
+        controllerTabs = [];
+        streamingStateSent = false;
+        lastStreamingIdsKey = "";
+        lastStreamingEnabled = false;
         health = "starting";
         helper.command = helperCommand;
         acceptingOutput = true;
@@ -119,6 +127,7 @@ QtObject {
 
     function scheduleRestart(reason) {
         modelState = Model.initialState();
+        controllerTabs = [];
         if (permanentFailure || expectedStop)
             return;
         var now = Date.now();
@@ -179,6 +188,8 @@ QtObject {
             return;
         }
         modelState = result.state;
+        if (message.type === "snapshot" || message.type === "controller" || message.type === "removed")
+            refreshControllerTabs();
         acceptedMessages++;
         lastMessageMs = Date.now();
         protocolError = "";
@@ -293,6 +304,7 @@ QtObject {
         processExited = false;
         if (expectedStop) {
             modelState = Model.initialState();
+            controllerTabs = [];
             health = "stopped";
             return;
         }
@@ -327,6 +339,20 @@ QtObject {
         modelState = Model.selectController(modelState, String(id || ""));
     }
 
+    function refreshControllerTabs() {
+        var tabs = [];
+        for (var i = 0; i < controllers.length; i++) {
+            tabs.push({
+                id: controllers[i].id,
+                name: controllers[i].name,
+                family: controllers[i].family,
+                sdlType: controllers[i].sdlType
+            });
+        }
+        if (JSON.stringify(tabs) !== JSON.stringify(controllerTabs))
+            controllerTabs = tabs;
+    }
+
     function cycleSelection(delta) {
         modelState = Model.cycleSelection(modelState, Number(delta));
         syncStreaming();
@@ -351,6 +377,15 @@ QtObject {
                 var id = String(ids[i]);
                 if (!/^[1-9][0-9]{0,19}$/.test(id))
                     return false;
+                var connected = false;
+                for (var controllerIndex = 0; controllerIndex < controllers.length; controllerIndex++) {
+                    if (controllers[controllerIndex].id === id) {
+                        connected = true;
+                        break;
+                    }
+                }
+                if (!connected)
+                    return false;
                 if (!Model.hasOwn(seen, id)) {
                     seen[id] = true;
                     boundedIds.push(id);
@@ -368,11 +403,9 @@ QtObject {
             return;
         var ids = [];
         var seen = Object.create(null);
-        var requested = false;
         var consumers = Object.keys(streamingRequests);
         for (var c = 0; c < consumers.length; c++) {
             var consumer = consumers[c];
-            requested = true;
             var consumerIds = streamingRequests[consumer];
             if (consumerIds.length === 0) {
                 for (var i = 0; i < controllers.length; i++) {
@@ -384,21 +417,35 @@ QtObject {
             } else {
                 for (var j = 0; j < consumerIds.length; j++) {
                     var id = String(consumerIds[j]);
-                    if (!Model.hasOwn(seen, id) && Model.selectedController(Model.selectController(modelState, id))) {
+                    var connected = false;
+                    for (var k = 0; k < controllers.length; k++) {
+                        if (controllers[k].id === id) {
+                            connected = true;
+                            break;
+                        }
+                    }
+                    if (!Model.hasOwn(seen, id) && connected) {
                         seen[id] = true;
                         ids.push(id);
                     }
                 }
             }
         }
+        var enabled = ids.length > 0;
+        var idsKey = ids.join(",");
+        if (streamingStateSent && idsKey === lastStreamingIdsKey && enabled === lastStreamingEnabled)
+            return;
         helper.write(JSON.stringify({
             command: "subscribe",
             ids: ids
         }) + "\n");
         helper.write(JSON.stringify({
             command: "setStreaming",
-            enabled: requested
+            enabled: enabled
         }) + "\n");
+        lastStreamingIdsKey = idsKey;
+        lastStreamingEnabled = enabled;
+        streamingStateSent = true;
     }
 
     onManifestChanged: launchTimer.restart()

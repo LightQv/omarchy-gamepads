@@ -2,7 +2,7 @@
 
 Omarchy Gamepads is an Omarchy shell plugin for controller vitals, interactive visualization, and guided input diagnostics. Nintendo Switch Pro Controller support is the initial target.
 
-The repository currently contains the protocol version 1 backend, shared QML service, native compact bar panel, and a floating Details window. Input visualization and guided diagnostics remain under development.
+The repository currently contains the protocol version 1 backend, shared QML service, native compact bar panel, and a floating Details window with physical-controller tabs, profile-aware overview and live input modes, and a generic unsupported-profile state. Guided diagnostics and the interactive 3D model remain under development.
 
 ## Installation
 
@@ -37,6 +37,10 @@ python scripts/gamepad-helper.py
 
 The helper communicates using newline-delimited JSON on standard input and output. See [`docs/backend-protocol.md`](docs/backend-protocol.md).
 
+## Controller Profiles
+
+Detailed controller behavior is isolated in `profiles/`. The initial Switch Pro profile defines SDL matching, Nintendo-style labels, expected controls, semantic visual-part names, and the visual component contract. SDL-recognized controllers without a detailed profile still receive a tab and generic vitals. See [`docs/controller-profile.md`](docs/controller-profile.md).
+
 ## Validation
 
 ```bash
@@ -45,12 +49,12 @@ scripts/lint-qml.sh
 scripts/test-service.sh
 scripts/test-panel.sh
 bash tests/test_window_placement.sh
-node --test tests/model.test.js
+node --test tests/model.test.js tests/profile.test.js
 python -m compileall -q scripts tests
 python -m unittest discover -s tests -v
 ```
 
-The service and panel smoke tests require Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`. Details-window placement uses the `hyprctl` and `jq` tools included with Omarchy to float, center, and move the existing window to the active workspace; its process-scoped pre-map rule is disabled immediately after placement.
+The service and panel smoke tests require Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`. They cover selected-controller streaming, tab hotplug behavior, unsupported profiles, mode transitions, and host-close cleanup. Details-window placement uses the `hyprctl` and `jq` tools included with Omarchy to float, center, and move the existing window to the active workspace; its process-scoped pre-map rule is disabled immediately after placement.
 
 ## Security
 

@@ -174,6 +174,20 @@ function controllerIndex(controllers, id) {
   return -1;
 }
 
+function neighboringControllerId(previousControllers, selectedId, nextControllers) {
+  var selectedIndex = controllerIndex(previousControllers, selectedId);
+  if (selectedIndex < 0) return "";
+  for (var right = selectedIndex + 1; right < previousControllers.length; right++) {
+    if (controllerIndex(nextControllers, previousControllers[right].id) !== -1)
+      return previousControllers[right].id;
+  }
+  for (var left = selectedIndex - 1; left >= 0; left--) {
+    if (controllerIndex(nextControllers, previousControllers[left].id) !== -1)
+      return previousControllers[left].id;
+  }
+  return "";
+}
+
 function normalizeSelection(state, previousIndex) {
   if (controllerIndex(state.controllers, state.selectedId) !== -1) return;
   if (state.controllers.length === 0) {
@@ -224,8 +238,11 @@ function reduceSnapshot(state, message) {
     ids[controller.id] = true;
     controllers.push(controller);
   }
+  var neighborId = neighboringControllerId(state.controllers, state.selectedId, controllers);
   var next = copyState(state);
   next.controllers = controllers;
+  if (controllerIndex(controllers, state.selectedId) === -1 && neighborId !== "")
+    next.selectedId = neighborId;
   next.snapshotAccepted = true;
   next.lastSequence = message.sequence;
   next.status = "ready";
