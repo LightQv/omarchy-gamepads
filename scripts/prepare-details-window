@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Register before mapping so the first frame is floating and centered.
+set -euo pipefail
+
+hyprctl_call() {
+  /usr/bin/timeout 2 /usr/bin/hyprctl "$@"
+}
+
+prepare_details_window() {
+  local rule_token=${1:-}
+  local expected_pid=$PPID
+  [[ $rule_token =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
+  [[ $expected_pid =~ ^[1-9][0-9]*$ ]] || return 1
+
+  hyprctl_call eval "
+    hl.window_rule({
+      name = \"lightqv-gamepad-details-${rule_token}\",
+      match = {
+        class = \"^org\\\\.quickshell$\",
+        title = \"^Gamepad Details$\",
+        pid = \"^${expected_pid}$\",
+      },
+      float = true,
+      center = true,
+      size = { 680, 560 },
+    })
+  " >/dev/null
+}
+
+main() {
+  (( $# == 1 )) || {
+    printf '%s\n' "Usage: prepare-details-window RULE_TOKEN" >&2
+    return 1
+  }
+  prepare_details_window "$1"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

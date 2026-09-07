@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -euo pipefail
+
+hyprctl_call() {
+  /usr/bin/timeout 2 /usr/bin/hyprctl "$@"
+}
+
+clear_details_window_rules() {
+  (( $# >= 1 && $# <= 64 )) || return 1
+  local rule_token
+  for rule_token in "$@"; do
+    [[ $rule_token =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
+  done
+  for rule_token in "$@"; do
+    hyprctl_call eval "
+      hl.window_rule({
+        name = \"lightqv-gamepad-details-${rule_token}\",
+        enabled = false,
+      })
+    " >/dev/null || return 1
+  done
+}
+
+main() {
+  (( $# >= 1 && $# <= 64 )) || {
+    printf '%s\n' "Usage: clear-details-window-rule RULE_TOKEN..." >&2
+    return 1
+  }
+  clear_details_window_rules "$@"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

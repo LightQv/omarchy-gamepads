@@ -1,0 +1,90 @@
+#!/bin/bash
+
+set -euo pipefail
+
+hyprctl_call() {
+  /usr/bin/timeout 2 /usr/bin/hyprctl "$@"
+}
+
+disable_details_window_rule() {
+  local rule_token=${1:-}
+  local expected_pid=$PPID
+  [[ $rule_token =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
+  [[ $expected_pid =~ ^[1-9][0-9]*$ ]] || return 1
+  hyprctl_call eval "
+    hl.window_rule({
+      name = \"lightqv-gamepad-details-${rule_token}\",
+      enabled = false,
+    })
+  " >/dev/null
+}
+
+place_details_window_inner() {
+  local rule_token=${1:-}
+  local expected_pid=$PPID
+  local maximum_hyprland_bytes=4194304
+  local workspace_json target_workspace clients_json client address floating current_workspace window
+
+  [[ $rule_token =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
+  [[ $expected_pid =~ ^[1-9][0-9]*$ ]] || return 1
+  workspace_json=$(hyprctl_call activeworkspace -j 2>/dev/null |
+    /usr/bin/head -c "$((maximum_hyprland_bytes + 1))") || return 1
+  (( ${#workspace_json} <= maximum_hyprland_bytes )) || return 1
+  target_workspace=$(/usr/bin/jq -r 'if type == "object" then (.name // empty) else empty end' \
+    <<<"$workspace_json") || return 1
+  [[ $target_workspace =~ ^[A-Za-z0-9_.:+-]{1,128}$ ]] || return 1
+
+  for (( attempt = 0; attempt < 40; attempt++ )); do
+    clients_json=$(hyprctl_call clients -j 2>/dev/null |
+      /usr/bin/head -c "$((maximum_hyprland_bytes + 1))") || return 1
+    (( ${#clients_json} <= maximum_hyprland_bytes )) || return 1
+    client=$(/usr/bin/jq -c --argjson expected_pid "$expected_pid" '
+      if type == "array" then
+        [.[-4096:][]
+          | select(.class == "org.quickshell" and .title == "Gamepad Details"
+            and .pid == $expected_pid)][-1] // empty
+      else empty end
+    ' <<<"$clients_json") || return 1
+
+    address=$(/usr/bin/jq -r '.address // empty' <<<"$client")
+    floating=$(/usr/bin/jq -r '.floating // false' <<<"$client")
+    current_workspace=$(/usr/bin/jq -r '.workspace.name // empty' <<<"$client")
+    if [[ $address =~ ^0x[0-9a-fA-F]+$ ]]; then
+      window="address:$address"
+      if [[ $current_workspace != "$target_workspace" ]]; then
+        hyprctl_call dispatch "hl.dsp.window.move({ workspace = \"$target_workspace\", follow = false, window = \"$window\" })" >/dev/null || return 1
+      fi
+      if [[ $floating != "true" ]]; then
+        hyprctl_call dispatch "hl.dsp.window.float({ window = \"$window\", action = \"toggle\" })" >/dev/null || return 1
+      fi
+      hyprctl_call dispatch "hl.dsp.window.resize({ window = \"$window\", x = 680, y = 560 })" >/dev/null || return 1
+      hyprctl_call dispatch "hl.dsp.window.center({ window = \"$window\" })" >/dev/null || return 1
+      hyprctl_call dispatch "hl.dsp.focus({ window = \"$window\" })" >/dev/null || return 1
+      return 0
+    fi
+
+    /usr/bin/sleep 0.05
+  done
+
+  return 1
+}
+
+place_details_window() {
+  local rule_token=${1:-}
+  local status=0
+  place_details_window_inner "$rule_token" || status=$?
+  disable_details_window_rule "$rule_token" || true
+  return "$status"
+}
+
+main() {
+  (( $# == 1 )) || {
+    printf '%s\n' "Usage: place-details-window RULE_TOKEN" >&2
+    return 1
+  }
+  place_details_window "$1"
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  main "$@"
+fi

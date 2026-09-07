@@ -47,3 +47,6 @@ jobs:
 
       - name: Run model tests
         run: node --test plugin/tests/model.test.js
+
+      - name: Test window placement
+        run: bash plugin/tests/test_window_placement.sh

@@ -1,5 +1,7 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
-import QtQuick.Layouts
+import QtQuick.Controls
 import qs.Commons
 import qs.Ui as Ui
 import "Model.js" as Model
@@ -14,32 +16,178 @@ Ui.Panel {
     property var anchorItem: null
     property var hostWidget: null
     property var service: null
-    property int selectedAction: 0
+    property bool cursorActive: false
+    property string focusSection: "header"
+    property int selectedIndex: 0
+    property bool actionFocused: false
 
     readonly property var barIdentity: hostWidget || root
-    readonly property var selectedGamepad: service ? service.selectedController : null
-    readonly property real selectedBatteryFraction: Model.batteryFraction(selectedGamepad)
-    readonly property int actionCount: service && (service.dependencyMissing || service.health === "error") ? 2 : 1
-    readonly property color foreground: Color.popups.text
+    readonly property color foreground: bar ? bar.foreground : Color.popups.text
     readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+    readonly property bool retryVisible: service && (service.dependencyMissing || service.health === "error")
+    readonly property bool settingsHasCursor: cursorActive && focusSection === "header"
 
-    onActionCountChanged: selectedAction = Math.min(selectedAction, actionCount - 1)
-    onSelectedActionChanged: Qt.callLater(ensureActionVisible)
+    onServiceChanged: clampCursor()
+    onRetryVisibleChanged: clampCursor()
 
-    function ensureActionVisible() {
-        var item = selectedAction === 0 ? detailsButton : retryButton;
-        if (!item || !item.visible)
+    Connections {
+        target: root.service
+
+        function onConnectedCountChanged() {
+            root.clampCursor();
+        }
+
+        function onControllersChanged() {
+            root.clampCursor();
+        }
+    }
+
+    function connectedSubtitle() {
+        var count = service ? service.connectedCount : 0;
+        if (count === 0)
+            return "NO CONTROLLERS";
+        return count + " CONNECTED";
+    }
+
+    function controllerStatus(controller) {
+        if (!controller)
+            return "";
+        var labels = [Model.connectionLabel(controller), Model.batteryLabel(controller)];
+        var batteryState = Model.batteryStateLabel(controller);
+        if (batteryState !== "")
+            labels.push(batteryState);
+        return labels.join("  ·  ");
+    }
+
+    function selectedControllerIndex() {
+        if (!service)
+            return 0;
+        for (var i = 0; i < service.controllers.length; i++) {
+            if (service.controllers[i].id === service.selectedId)
+                return i;
+        }
+        return 0;
+    }
+
+    function clampCursor() {
+        var count = service ? service.connectedCount : 0;
+        if (focusSection === "controllers" && count === 0) {
+            focusSection = retryVisible ? "retry" : "header";
+            selectedIndex = 0;
+            actionFocused = false;
+        } else if (focusSection === "controllers") {
+            selectedIndex = Math.max(0, Math.min(count - 1, selectedIndex));
+        } else if (focusSection === "retry" && !retryVisible) {
+            focusSection = count > 0 ? "controllers" : "header";
+            selectedIndex = count > 0 ? selectedControllerIndex() : 0;
+            actionFocused = false;
+        }
+        Qt.callLater(ensureCursorVisible);
+    }
+
+    function setHeaderCursor() {
+        cursorActive = true;
+        focusSection = "header";
+        selectedIndex = 0;
+        actionFocused = false;
+    }
+
+    function setControllerCursor(index, detailsAction) {
+        cursorActive = true;
+        focusSection = "controllers";
+        selectedIndex = Math.max(0, Math.min((service ? service.connectedCount : 1) - 1, index));
+        actionFocused = detailsAction === true;
+        ensureCursorVisible();
+    }
+
+    function ensureCursorVisible() {
+        var item = null;
+        if (focusSection === "header")
+            item = heroItem;
+        else if (focusSection === "controllers")
+            item = controllerRepeater.itemAt(selectedIndex);
+        else if (focusSection === "retry")
+            item = retryButton;
+        if (!item)
             return;
         var point = item.mapToItem(scroll.contentItem, 0, 0);
-        if (point.y < scroll.contentY)
-            scroll.contentY = point.y;
-        else if (point.y + item.height > scroll.contentY + scroll.height)
-            scroll.contentY = point.y + item.height - scroll.height;
+        if (point.y < scroll.contentItem.contentY)
+            scroll.contentItem.contentY = point.y;
+        else if (point.y + item.height > scroll.contentItem.contentY + scroll.height)
+            scroll.contentItem.contentY = point.y + item.height - scroll.height;
+    }
+
+    function moveCursor(dx, dy) {
+        if (!cursorActive) {
+            cursorActive = true;
+            if (service && service.connectedCount > 0) {
+                focusSection = "controllers";
+                selectedIndex = selectedControllerIndex();
+            } else {
+                focusSection = "header";
+            }
+            actionFocused = false;
+            ensureCursorVisible();
+            return;
+        }
+        if (dx !== 0 && focusSection === "controllers") {
+            actionFocused = dx > 0;
+            return;
+        }
+        if (dy === 0)
+            return;
+
+        var count = service ? service.connectedCount : 0;
+        if (focusSection === "header") {
+            if (dy > 0)
+                focusSection = count > 0 ? "controllers" : (retryVisible ? "retry" : "header");
+            else
+                focusSection = retryVisible ? "retry" : (count > 0 ? "controllers" : "header");
+            selectedIndex = focusSection === "controllers" ? (dy > 0 ? 0 : count - 1) : 0;
+        } else if (focusSection === "controllers") {
+            var next = selectedIndex + dy;
+            if (next < 0) {
+                focusSection = "header";
+                selectedIndex = 0;
+            } else if (next >= count) {
+                focusSection = retryVisible ? "retry" : "header";
+                selectedIndex = 0;
+            } else {
+                selectedIndex = next;
+            }
+        } else {
+            focusSection = dy > 0 ? "header" : (count > 0 ? "controllers" : "header");
+            selectedIndex = focusSection === "controllers" ? count - 1 : 0;
+        }
+        actionFocused = false;
+        ensureCursorVisible();
+    }
+
+    function activateCursor() {
+        if (!cursorActive)
+            return;
+        if (focusSection === "header") {
+            openDetails("");
+        } else if (focusSection === "controllers" && service && selectedIndex < service.controllers.length) {
+            var controller = service.controllers[selectedIndex];
+            if (actionFocused)
+                openDetails(controller.id);
+            else
+                service.selectController(controller.id);
+        } else if (focusSection === "retry" && service) {
+            service.retry();
+        }
     }
 
     function open() {
-        selectedAction = 0;
+        cursorActive = false;
+        focusSection = service && service.connectedCount > 0 ? "controllers" : "header";
+        selectedIndex = selectedControllerIndex();
+        actionFocused = false;
         root.controller.show();
+        Qt.callLater(function () {
+            scroll.contentItem.contentY = 0;
+        });
     }
 
     function close() {
@@ -56,28 +204,18 @@ Ui.Panel {
         return false;
     }
 
-    function moveCursor(dx, dy) {
-        if (dx !== 0 && service && service.connectedCount > 1)
-            service.cycleSelection(dx);
-        if (dy !== 0)
-            selectedAction = Math.max(0, Math.min(actionCount - 1, selectedAction + dy));
-    }
-
-    function activateCursor() {
-        if (selectedAction === 0) {
-            openDetails();
-        } else if (service) {
-            service.retry();
+    function openDetails(controllerId) {
+        var payload = {
+            view: "gamepads"
+        };
+        if (controllerId !== "") {
+            if (service)
+                service.selectController(controllerId);
+            payload.controllerId = controllerId;
         }
-    }
-
-    function openDetails() {
-        var id = service ? service.selectedId : "";
         close();
         if (bar && bar.shell && typeof bar.shell.summon === "function")
-            bar.shell.summon(moduleName, JSON.stringify({
-                controllerId: id
-            }));
+            bar.shell.summon(moduleName, JSON.stringify(payload));
     }
 
     Ui.KeyboardPanel {
@@ -87,8 +225,8 @@ Ui.Panel {
         bar: root.bar
         open: root.opened
         focusTarget: keyCatcher
-        contentWidth: popup.fittedContentWidth(Style.space(340))
-        contentHeight: popup.fittedContentHeight(content.implicitHeight)
+        contentWidth: popup.fittedContentWidth(Style.space(380))
+        contentHeight: popup.fittedContentHeight(panelColumn.implicitHeight, Style.space(560))
 
         Ui.PanelKeyCatcher {
             id: keyCatcher
@@ -102,182 +240,212 @@ Ui.Panel {
                 root.switchPanel(direction);
             }
 
-            Flickable {
+            ScrollView {
                 id: scroll
                 anchors.fill: parent
-                contentWidth: width
-                contentHeight: content.implicitHeight
                 clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                interactive: contentHeight > height
+                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                ScrollBar.vertical.policy: panelColumn.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
 
-                ColumnLayout {
-                    id: content
-                    width: scroll.width
-                    spacing: Style.space(12)
+                Binding {
+                    target: scroll.contentItem
+                    property: "interactive"
+                    value: panelColumn.implicitHeight > scroll.height
+                }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: Style.space(10)
+                Column {
+                    id: panelColumn
+                    width: scroll.availableWidth
+                    spacing: Style.space(14)
+
+                    Item {
+                        id: heroItem
+                        width: parent.width
+                        implicitHeight: Math.max(heroIcon.implicitHeight, heroLabels.implicitHeight, settingsButton.implicitHeight)
 
                         Text {
+                            id: heroIcon
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
                             text: "󰊴"
                             color: root.foreground
                             font.family: root.fontFamily
-                            font.pixelSize: Style.font.iconLarge
+                            font.pixelSize: Style.font.display
                         }
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
+                        Column {
+                            id: heroLabels
+                            anchors.left: heroIcon.right
+                            anchors.leftMargin: Style.space(14)
+                            anchors.right: settingsButton.left
+                            anchors.rightMargin: Style.space(12)
+                            anchors.verticalCenter: parent.verticalCenter
                             spacing: Style.space(2)
 
                             Text {
-                                Layout.fillWidth: true
-                                textFormat: Text.PlainText
-                                text: root.selectedGamepad ? root.selectedGamepad.name : "GAMEPADS"
+                                width: parent.width
+                                text: "Gamepads"
                                 color: root.foreground
                                 font.family: root.fontFamily
-                                font.pixelSize: Style.font.body
+                                font.pixelSize: Style.font.title
                                 font.bold: true
                                 elide: Text.ElideRight
                             }
 
                             Text {
-                                Layout.fillWidth: true
-                                textFormat: Text.PlainText
-                                text: root.service && root.service.connectedCount > 0 ? root.service.connectedCount + " CONNECTED" : "NO CONTROLLERS"
-                                color: Color.muted
+                                width: parent.width
+                                text: root.connectedSubtitle()
+                                color: Qt.darker(root.foreground, 1.4)
                                 font.family: root.fontFamily
                                 font.pixelSize: Style.font.caption
-                                font.letterSpacing: 1
+                                font.bold: true
+                                font.letterSpacing: 1.2
+                                elide: Text.ElideRight
                             }
+                        }
+
+                        Ui.Button {
+                            id: settingsButton
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            iconText: "󰒓"
+                            tooltipText: "Gamepad details"
+                            foreground: root.foreground
+                            fontFamily: root.fontFamily
+                            iconSize: Style.font.subtitle * 1.5
+                            horizontalPadding: Style.space(5)
+                            verticalPadding: Style.space(2)
+                            hasCursor: root.settingsHasCursor
+                            Accessible.role: Accessible.Button
+                            Accessible.name: tooltipText
+                            Accessible.onPressAction: root.openDetails("")
+                            onHovered: function (hovered) {
+                                if (hovered)
+                                    root.setHeaderCursor();
+                            }
+                            onClicked: root.openDetails("")
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: Style.spacing.hairline
-                        color: root.foreground
-                        opacity: 0.12
+                    Ui.PanelSeparator {
+                        foreground: root.foreground
                     }
 
-                    ColumnLayout {
-                        visible: !!root.selectedGamepad
-                        Layout.fillWidth: true
+                    Column {
+                        visible: root.service && root.service.connectedCount > 0
+                        width: parent.width
                         spacing: Style.space(8)
 
-                        RowLayout {
-                            Layout.fillWidth: true
+                        Ui.PanelSectionHeader {
+                            text: "CONNECTED"
+                            foreground: root.foreground
+                            fontFamily: root.fontFamily
+                        }
 
-                            Text {
-                                text: Model.connectionLabel(root.selectedGamepad)
-                                color: root.foreground
-                                font.family: root.fontFamily
-                                font.pixelSize: Style.font.bodySmall
-                            }
+                        Repeater {
+                            id: controllerRepeater
+                            model: root.service ? root.service.controllers : []
 
-                            Item {
-                                Layout.fillWidth: true
-                            }
+                            delegate: Ui.CursorSurface {
+                                id: controllerRow
+                                required property var modelData
+                                required property int index
 
-                            ColumnLayout {
-                                spacing: Style.space(2)
+                                width: parent ? parent.width : 0
+                                implicitHeight: rowContent.implicitHeight + Style.spacing.xl
+                                hasCursor: root.cursorActive && root.focusSection === "controllers" && root.selectedIndex === index && !root.actionFocused
+                                current: root.service && root.service.selectedId === modelData.id
+                                foreground: root.foreground
 
-                                RowLayout {
-                                    spacing: Style.space(6)
+                                MouseArea {
+                                    id: rowMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onContainsMouseChanged: if (containsMouse)
+                                        root.setControllerCursor(controllerRow.index, false)
+                                    onClicked: if (root.service)
+                                        root.service.selectController(controllerRow.modelData.id)
+                                }
 
-                                    Rectangle {
-                                        visible: root.selectedBatteryFraction >= 0
-                                        Layout.preferredWidth: Style.space(28)
-                                        Layout.preferredHeight: Style.space(12)
-                                        radius: Math.min(Style.cornerRadius, height / 2)
-                                        color: "transparent"
-                                        border.width: Style.spacing.hairline
-                                        border.color: Model.batteryIsLow(root.selectedGamepad) ? Color.urgent : root.foreground
+                                Item {
+                                    id: rowContent
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.leftMargin: Style.space(10)
+                                    anchors.rightMargin: Style.space(10)
+                                    implicitHeight: Math.max(deviceIcon.implicitHeight, labels.implicitHeight, detailsAction.implicitHeight)
 
-                                        Rectangle {
-                                            anchors.left: parent.left
-                                            anchors.top: parent.top
-                                            anchors.bottom: parent.bottom
-                                            anchors.margins: Style.spacing.hairline * 2
-                                            width: Math.max(0, (parent.width - anchors.margins * 2) * root.selectedBatteryFraction)
-                                            radius: Math.max(0, parent.radius - anchors.margins)
-                                            color: Model.batteryIsLow(root.selectedGamepad) ? Color.urgent : root.foreground
+                                    Text {
+                                        id: deviceIcon
+                                        anchors.left: parent.left
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: "󰊴"
+                                        color: Model.batteryIsLow(controllerRow.modelData) ? Color.urgent : root.foreground
+                                        font.family: root.fontFamily
+                                        font.pixelSize: Style.font.heading
+                                    }
+
+                                    Column {
+                                        id: labels
+                                        anchors.left: deviceIcon.right
+                                        anchors.leftMargin: Style.space(10)
+                                        anchors.right: detailsAction.left
+                                        anchors.rightMargin: Style.space(8)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: Style.space(1)
+
+                                        Text {
+                                            width: parent.width
+                                            textFormat: Text.PlainText
+                                            text: controllerRow.modelData.name
+                                            color: root.foreground
+                                            font.family: root.fontFamily
+                                            font.pixelSize: Style.font.body
+                                            elide: Text.ElideRight
+                                        }
+
+                                        Text {
+                                            width: parent.width
+                                            textFormat: Text.PlainText
+                                            text: root.controllerStatus(controllerRow.modelData)
+                                            color: Model.batteryIsLow(controllerRow.modelData) ? Color.urgent : Qt.darker(root.foreground, 1.4)
+                                            font.family: root.fontFamily
+                                            font.pixelSize: Style.font.caption
+                                            elide: Text.ElideRight
                                         }
                                     }
 
-                                    Text {
-                                        text: Model.batteryLabel(root.selectedGamepad)
-                                        color: Model.batteryIsLow(root.selectedGamepad) ? Color.urgent : root.foreground
-                                        font.family: root.fontFamily
-                                        font.pixelSize: Style.font.bodySmall
+                                    Ui.PanelActionButton {
+                                        id: detailsAction
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        iconText: "󰋼"
+                                        tooltipText: "Open details"
+                                        foreground: root.foreground
+                                        hoverColor: root.foreground
+                                        fontFamily: root.fontFamily
+                                        hasCursor: root.cursorActive && root.focusSection === "controllers" && root.selectedIndex === controllerRow.index && root.actionFocused
+                                        Accessible.role: Accessible.Button
+                                        Accessible.name: "Open details for " + controllerRow.modelData.name
+                                        Accessible.onPressAction: root.openDetails(controllerRow.modelData.id)
+                                        onHovered: function (hovered) {
+                                            if (hovered)
+                                                root.setControllerCursor(controllerRow.index, true);
+                                            else if (rowMouse.containsMouse)
+                                                root.actionFocused = false;
+                                        }
+                                        onClicked: root.openDetails(controllerRow.modelData.id)
                                     }
                                 }
-
-                                Text {
-                                    Layout.alignment: Qt.AlignRight
-                                    text: Model.batteryStateLabel(root.selectedGamepad)
-                                    visible: text !== ""
-                                    color: Color.muted
-                                    font.family: root.fontFamily
-                                    font.pixelSize: Style.font.caption
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            visible: root.service && root.service.connectedCount > 1
-                            Layout.fillWidth: true
-
-                            Ui.Button {
-                                iconText: "󰅁"
-                                foreground: root.foreground
-                                fontFamily: root.fontFamily
-                                tooltipText: "Previous controller"
-                                Accessible.role: Accessible.Button
-                                Accessible.name: tooltipText
-                                Accessible.onPressAction: if (root.service)
-                                    root.service.cycleSelection(-1)
-                                onClicked: if (root.service)
-                                    root.service.cycleSelection(-1)
-                            }
-
-                            Text {
-                                Layout.fillWidth: true
-                                horizontalAlignment: Text.AlignHCenter
-                                text: {
-                                    if (!root.service || !root.selectedGamepad)
-                                        return "";
-                                    var index = -1;
-                                    for (var i = 0; i < root.service.controllers.length; i++)
-                                        if (root.service.controllers[i].id === root.selectedGamepad.id)
-                                            index = i;
-                                    return (index + 1) + " OF " + root.service.connectedCount;
-                                }
-                                color: Color.muted
-                                font.family: root.fontFamily
-                                font.pixelSize: Style.font.caption
-                                font.letterSpacing: 1
-                            }
-
-                            Ui.Button {
-                                iconText: "󰅂"
-                                foreground: root.foreground
-                                fontFamily: root.fontFamily
-                                tooltipText: "Next controller"
-                                Accessible.role: Accessible.Button
-                                Accessible.name: tooltipText
-                                Accessible.onPressAction: if (root.service)
-                                    root.service.cycleSelection(1)
-                                onClicked: if (root.service)
-                                    root.service.cycleSelection(1)
                             }
                         }
                     }
 
                     Text {
-                        visible: !root.selectedGamepad
-                        Layout.fillWidth: true
+                        visible: !root.service || root.service.connectedCount === 0
+                        width: parent.width
                         textFormat: Text.PlainText
                         text: {
                             if (!root.service)
@@ -290,69 +458,54 @@ Ui.Panel {
                                 return "Starting the controller backend...";
                             return "Connect a supported controller to see its vitals.";
                         }
-                        color: root.service && (root.service.dependencyMissing || root.service.health === "error") ? Color.urgent : Color.muted
+                        color: root.service && (root.service.dependencyMissing || root.service.health === "error") ? Color.urgent : Qt.darker(root.foreground, 1.5)
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.bodySmall
-                        wrapMode: Text.Wrap
+                        wrapMode: Text.WordWrap
                     }
 
                     Text {
                         visible: root.service && root.service.backendWarning
-                        Layout.fillWidth: true
+                        width: parent.width
                         textFormat: Text.PlainText
                         text: root.service ? root.service.lastErrorMessage : ""
                         color: Color.urgent
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.caption
-                        wrapMode: Text.Wrap
+                        wrapMode: Text.WordWrap
                     }
 
                     Text {
                         visible: root.service && root.service.protocolError !== ""
-                        Layout.fillWidth: true
+                        width: parent.width
+                        textFormat: Text.PlainText
                         text: root.service ? root.service.protocolError : ""
                         color: Color.urgent
                         font.family: root.fontFamily
                         font.pixelSize: Style.font.caption
-                        wrapMode: Text.Wrap
-                    }
-
-                    Ui.Button {
-                        id: detailsButton
-                        Layout.fillWidth: true
-                        text: "Details"
-                        iconText: "󰋼"
-                        leftAlign: true
-                        foreground: root.foreground
-                        fontFamily: root.fontFamily
-                        hasCursor: root.selectedAction === 0
-                        Accessible.role: Accessible.Button
-                        Accessible.name: "Open gamepad details"
-                        Accessible.onPressAction: root.openDetails()
-                        onHovered: function (hovered) {
-                            if (hovered)
-                                root.selectedAction = 0;
-                        }
-                        onClicked: root.openDetails()
+                        wrapMode: Text.WordWrap
                     }
 
                     Ui.Button {
                         id: retryButton
-                        visible: root.actionCount > 1
-                        Layout.fillWidth: true
+                        visible: root.retryVisible
+                        width: parent.width
                         text: "Retry backend"
                         iconText: "󰑓"
                         leftAlign: true
                         foreground: root.foreground
                         fontFamily: root.fontFamily
-                        hasCursor: root.selectedAction === 1
+                        hasCursor: root.cursorActive && root.focusSection === "retry"
                         Accessible.role: Accessible.Button
                         Accessible.name: "Retry gamepad backend"
                         Accessible.onPressAction: if (root.service)
                             root.service.retry()
                         onHovered: function (hovered) {
-                            if (hovered)
-                                root.selectedAction = 1;
+                            if (hovered) {
+                                root.cursorActive = true;
+                                root.focusSection = "retry";
+                                root.actionFocused = false;
+                            }
                         }
                         onClicked: if (root.service)
                             root.service.retry()
