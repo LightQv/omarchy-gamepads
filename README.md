@@ -2,7 +2,7 @@
 
 Omarchy Gamepads is an Omarchy shell plugin for controller vitals, interactive visualization, and guided input diagnostics. Nintendo Switch Pro Controller support is the initial target.
 
-The repository currently contains the plugin foundation and protocol version 1 backend. The QML interface remains disabled until its service integration is implemented.
+The repository currently contains the protocol version 1 backend, shared QML service, compact bar panel, and a minimal Details window. Input visualization and guided diagnostics remain under development.
 
 ## Installation
 
@@ -15,7 +15,7 @@ omarchy plugin add <git-url>
 omarchy plugin enable lightqv.gamepads
 ```
 
-The bar widget defaults to the right section and can be moved with `omarchy bar move lightqv.gamepads --section right`. The final bar widget will own its compact popup; `omarchy-shell shell summon lightqv.gamepads` will open the independent panel. Both interfaces use one shared service. The interfaces remain intentionally unavailable in the current development phase.
+The bar widget defaults to the right section and can be moved with `omarchy bar move lightqv.gamepads --section right`. Its button opens the compact vitals popup. The Details action, or `omarchy-shell shell summon lightqv.gamepads`, opens the independent panel. Both interfaces use one shared service and one helper process.
 
 ## Runtime Dependencies
 
@@ -42,9 +42,13 @@ The helper communicates using newline-delimited JSON on standard input and outpu
 ```bash
 omarchy plugin validate .
 scripts/lint-qml.sh
+scripts/test-service.sh
+node --test tests/model.test.js
 python -m compileall -q scripts tests
 python -m unittest discover -s tests -v
 ```
+
+The service smoke test requires Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`.
 
 ## Security
 
