@@ -35,12 +35,17 @@ fi
 # and unavailable CI-only Quickshell modules are excluded; all other warnings
 # fail the check.
 cd -- "$(dirname -- "$repo_root")"
-"$qmllint" \
-  --ignore-settings \
-  -W 0 \
-  --import disable \
-  --missing-property disable \
-  --missing-type disable \
-  --unresolved-type disable \
-  -I "$import_root" \
-  "${qml_files[@]}"
+qmllint_help=$("$qmllint" --help)
+lint_args=(--ignore-settings --import disable -I "$import_root")
+
+if [[ $qmllint_help == *"--max-warnings"* ]]; then
+  lint_args+=(-W 0)
+fi
+
+if [[ $qmllint_help == *"--missing-property"* ]]; then
+  lint_args+=(--missing-property disable --missing-type disable --unresolved-type disable)
+else
+  lint_args+=(--property disable --type disable)
+fi
+
+"$qmllint" "${lint_args[@]}" "${qml_files[@]}"
