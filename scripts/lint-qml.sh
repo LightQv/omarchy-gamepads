@@ -45,7 +45,9 @@ fi
 if [[ $qmllint_help == *"--missing-property"* ]]; then
   lint_args+=(--missing-property disable --missing-type disable --unresolved-type disable)
 else
-  lint_args+=(--property disable --type disable)
+  # Qt 6.4 cannot model Quickshell host types and cascades those missing types
+  # into signal and unqualified-access warnings.
+  lint_args+=(--property disable --type disable --signal disable --unqualified disable)
 fi
 
 "$qmllint" "${lint_args[@]}" "${qml_files[@]}"
