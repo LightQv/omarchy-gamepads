@@ -21,8 +21,7 @@ Item {
     property bool testedControllerPresent: false
     property string observedPhase: "idle"
     property bool compactLayout: false
-    property bool modeHasCursor: false
-    property bool actionsHaveCursor: false
+    property string cursorRow: "mode"
     property var projectedCapabilities: null
     property var projectedProfile: null
     property var liveDigitalControlNames: []
@@ -30,9 +29,6 @@ Item {
 
     signal cancelRequested()
     signal exportRequested()
-    signal modeFocusRequested()
-    signal actionFocusRequested()
-
     readonly property var diagnostic: service && service.diagnosticState ? service.diagnosticState : ({ phase: "idle", results: {} })
     readonly property string phase: diagnostic.phase || "idle"
     readonly property bool supported: !!controller && !!profile
@@ -53,6 +49,11 @@ Item {
     readonly property real guidedContentScrollPosition: digitalChecklist.contentY
     readonly property bool guidedVisible: selectedView === "guided"
     readonly property bool hasVisibleActions: guidedVisible && actionLabels.length > 0
+    readonly property bool retrySelectorVisible: guidedVisible && phase === "review" && retryControls.length > 1
+    readonly property int modeIndex: selectedView === "guided" ? 1 : 0
+    readonly property bool modeHasCursor: cursorRow === "mode"
+    readonly property bool retryHasCursor: cursorRow === "retry"
+    readonly property bool actionsHaveCursor: cursorRow === "actions"
     readonly property int contentHeight: Style.space(compactLayout ? 196 : 238)
     readonly property real modeContentHeight: contentSurface.height
 
@@ -61,6 +62,9 @@ Item {
     Component.onCompleted: refreshLiveProjections()
     onControllerChanged: refreshLiveProjections()
     onProfileChanged: refreshLiveProjections()
+    onSelectedViewChanged: normalizeCursor()
+    onActionLabelsChanged: normalizeCursor()
+    onRetryControlsChanged: normalizeCursor()
 
     onPhaseChanged: {
         var previous = observedPhase;
@@ -72,6 +76,7 @@ Item {
             selectedView = "live";
         else if (previous === "idle" || previous === "review")
             selectedView = "guided";
+        normalizeCursor();
         if (phase === "baseline_capturing")
             baselineTimer.restart();
         else
@@ -220,22 +225,40 @@ Item {
         return label.length > limit ? label.slice(0, limit - 3) + "..." : label;
     }
 
-    function scrollLiveButtons(direction) {
+    function scrollLiveButtons(direction, page) {
         if (selectedView !== "live" || !liveButtonsScrollable)
             return false;
         var maximum = Math.max(0, liveButtonViewport.contentHeight - liveButtonViewport.height);
+        var amount = page ? Math.max(Style.space(80), liveButtonViewport.height * 0.8) : Style.space(48);
         liveButtonViewport.contentY = Math.max(0, Math.min(maximum,
-            liveButtonViewport.contentY + (direction < 0 ? -Style.space(48) : Style.space(48))));
+            liveButtonViewport.contentY + (direction < 0 ? -amount : amount)));
         return true;
     }
 
-    function scrollGuidedContent(direction) {
+    function scrollGuidedContent(direction, page) {
         if (!guidedVisible || !guidedContentScrollable)
             return false;
         var maximum = Math.max(0, digitalChecklist.contentHeight - digitalChecklist.height);
+        var amount = page ? Math.max(Style.space(80), digitalChecklist.height * 0.8) : Style.space(48);
         digitalChecklist.contentY = Math.max(0, Math.min(maximum,
-            digitalChecklist.contentY + (direction < 0 ? -Style.space(48) : Style.space(48))));
+            digitalChecklist.contentY + (direction < 0 ? -amount : amount)));
         return true;
+    }
+
+    function scrollVisibleContent(direction, page) {
+        return selectedView === "live" ? scrollLiveButtons(direction, page) : scrollGuidedContent(direction, page);
+    }
+
+    function scrollVisibleContentToEdge(end) {
+        if (selectedView === "live" && liveButtonsScrollable) {
+            liveButtonViewport.contentY = end ? Math.max(0, liveButtonViewport.contentHeight - liveButtonViewport.height) : 0;
+            return true;
+        }
+        if (guidedVisible && guidedContentScrollable) {
+            digitalChecklist.contentY = end ? Math.max(0, digitalChecklist.contentHeight - digitalChecklist.height) : 0;
+            return true;
+        }
+        return false;
     }
 
     function diagnosticAxisValue(name) {
@@ -331,43 +354,72 @@ Item {
 
     function setSelectedView(view) {
         selectedView = view === "guided" ? "guided" : "live";
-        modeFocusRequested();
+        cursorRow = "mode";
     }
 
     function moveMode(delta) {
         selectedView = delta < 0 ? "live" : "guided";
-        focusModeTabs();
+        cursorRow = "mode";
     }
 
-    function focusModeTabs() {
-        // Keyboard focus remains on the panel-level key catcher.
+    function resetCursor() {
+        cursorRow = "mode";
+        actionIndex = 0;
+        normalizeCursor();
+    }
+
+    function normalizeCursor() {
+        actionIndex = Math.max(0, Math.min(actionIndex, actionLabels.length - 1));
+        retryIndex = Math.max(0, Math.min(retryIndex, retryControls.length - 1));
+        if (cursorRow === "retry" && !retrySelectorVisible)
+            cursorRow = hasVisibleActions ? "actions" : "mode";
+        if (cursorRow === "actions" && !hasVisibleActions)
+            cursorRow = "mode";
+    }
+
+    function moveCursor(dx, dy) {
+        normalizeCursor();
+        if (dx !== 0) {
+            if (cursorRow === "mode")
+                moveMode(dx);
+            else if (cursorRow === "retry")
+                moveRetry(dx);
+            else
+                moveAction(dx);
+            return;
+        }
+        if (dy === 0)
+            return;
+        if (cursorRow === "mode") {
+            if (dy > 0 && retrySelectorVisible)
+                cursorRow = "retry";
+            else if (dy > 0 && hasVisibleActions)
+                cursorRow = "actions";
+        } else if (cursorRow === "retry") {
+            cursorRow = dy < 0 ? "mode" : "actions";
+        } else if (dy < 0) {
+            cursorRow = retrySelectorVisible ? "retry" : "mode";
+        }
     }
 
     function moveAction(delta) {
         if (actionLabels.length === 0)
             return;
-        var step = delta < 0 ? -1 : 1;
-        actionIndex = (actionIndex + step + actionLabels.length) % actionLabels.length;
-        focusCurrentAction();
+        actionIndex = Math.max(0, Math.min(actionLabels.length - 1, actionIndex + (delta < 0 ? -1 : 1)));
+        cursorRow = "actions";
     }
 
     function moveRetry(delta) {
         if (phase !== "review" || retryControls.length < 2)
             return false;
-        var step = delta < 0 ? -1 : 1;
-        retryIndex = (retryIndex + step + retryControls.length) % retryControls.length;
+        retryIndex = Math.max(0, Math.min(retryControls.length - 1, retryIndex + (delta < 0 ? -1 : 1)));
         actionIndex = 0;
         return true;
     }
 
-    function activateCurrentAction() {
-        activateAction(actionIndex);
-    }
-
-    function focusCurrentAction() {
-        if (!visible || !guidedVisible || actionLabels.length === 0)
-            return;
-        // Keyboard focus remains on the panel-level key catcher.
+    function activateCursor() {
+        if (cursorRow === "actions" && hasVisibleActions)
+            activateAction(actionIndex);
     }
 
     function activateAction(index) {
@@ -446,7 +498,7 @@ Item {
                 options: [{ value: "live", label: "Live Input" }, { value: "guided", label: "Guided Diagnostic" }]
                 value: root.selectedView
                 focusable: false
-                cursorIndex: root.modeHasCursor ? (root.selectedView === "live" ? 0 : 1) : -1
+                cursorIndex: root.modeHasCursor ? root.modeIndex : -1
                 foreground: root.foreground
                 background: root.background
                 fontFamily: root.fontFamily
@@ -644,12 +696,15 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.topMargin: Style.space(6)
+                    height: Math.min(implicitHeight, Math.max(0,
+                        (retrySelector.visible ? retrySelector.y : actionFooter.y) - y - Style.space(8)))
                     textFormat: Text.PlainText
                     text: root.instructionText()
                     color: Qt.darker(root.foreground, 1.3)
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.bodySmall
                     wrapMode: Text.WordWrap
+                    elide: Text.ElideRight
                 }
 
                 Item {
@@ -697,9 +752,75 @@ Item {
                                 fontFamily: root.fontFamily
                                 onClicked: {
                                     root.actionIndex = index;
-                                    root.actionFocusRequested();
+                                    root.cursorRow = "actions";
                                     root.activateAction(index);
                                 }
+                            }
+                        }
+                    }
+                }
+
+                Item {
+                    id: retrySelector
+                    visible: root.retrySelectorVisible
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.bottom: actionFooter.top
+                    anchors.bottomMargin: Style.space(8)
+                    height: retryControlsRow.implicitHeight
+
+                    Ui.PanelSectionHeader {
+                        anchors.left: parent.left
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "RETRY TARGET"
+                        foreground: root.foreground
+                        fontFamily: root.fontFamily
+                    }
+
+                    Row {
+                        id: retryControlsRow
+                        anchors.right: parent.right
+                        spacing: Style.space(6)
+
+                        Ui.Button {
+                            text: "Previous"
+                            tooltipText: "Previous retry target"
+                            bordered: true
+                            focusable: false
+                            enabled: root.retryIndex > 0
+                            foreground: root.foreground
+                            background: root.background
+                            fontFamily: root.fontFamily
+                            onClicked: {
+                                root.cursorRow = "retry";
+                                root.moveRetry(-1);
+                            }
+                        }
+
+                        Ui.Button {
+                            text: root.controlLabel(root.selectedRetryControl())
+                            tooltipText: "Use Left/Right to choose a control"
+                            bordered: true
+                            focusable: false
+                            hasCursor: root.retryHasCursor
+                            foreground: root.foreground
+                            background: root.background
+                            fontFamily: root.fontFamily
+                            onClicked: root.cursorRow = "retry"
+                        }
+
+                        Ui.Button {
+                            text: "Next"
+                            tooltipText: "Next retry target"
+                            bordered: true
+                            focusable: false
+                            enabled: root.retryIndex < root.retryControls.length - 1
+                            foreground: root.foreground
+                            background: root.background
+                            fontFamily: root.fontFamily
+                            onClicked: {
+                                root.cursorRow = "retry";
+                                root.moveRetry(1);
                             }
                         }
                     }
@@ -711,7 +832,7 @@ Item {
                     anchors.top: guidedInstruction.bottom
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.bottom: actionFooter.top
+                    anchors.bottom: retrySelector.visible ? retrySelector.top : actionFooter.top
                     anchors.topMargin: Style.space(8)
                     anchors.bottomMargin: Style.space(8)
                     contentWidth: width
@@ -783,7 +904,7 @@ Item {
                     visible: root.phase === "analog_left" || root.phase === "analog_right"
                     anchors.top: guidedInstruction.bottom
                     anchors.left: parent.left
-                    anchors.bottom: actionFooter.top
+                    anchors.bottom: retrySelector.visible ? retrySelector.top : actionFooter.top
                     anchors.topMargin: Style.space(8)
                     anchors.bottomMargin: Style.space(8)
                     width: Math.min(parent.width, Style.space(560))

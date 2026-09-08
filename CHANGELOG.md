@@ -17,3 +17,4 @@ All notable changes to this project will be documented here.
 - Separate live input from guided diagnostics inside one stable bordered surface with first-row mode tabs, sticks-first live layout, threshold-aware stick and digital-trigger highlights, consistent left-side checkbox markers, centralized keyboard navigation, automatic stage progression, and immutable completed reviews.
 - Refine the diagnostic surface with no external section title, controller-tab-matched content spacing, `Guided Diagnostic` terminology, profile-defined Switch control order, and numeric ZL/ZR values.
 - Add Omarchy-style directional edge fades to every overflowing compact and Details viewport.
+- Dedicate Tab/Shift+Tab to controller cycling and use one spatial arrow or `h`/`j`/`k`/`l` cursor for Details modes, retry selection, and guided actions.

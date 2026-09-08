@@ -75,6 +75,7 @@ ShellRoot {
         property var controllerTabs: tabProjection()
         property string selectedId: "11"
         property string streamingId: ""
+        property string retriedControl: ""
         property int clearCount: 0
         readonly property int connectedCount: controllers.length
         readonly property var selectedController: selected()
@@ -185,6 +186,11 @@ ShellRoot {
             diagnosticState = root.cancelDiagnosticSession(diagnosticState);
         }
 
+        function retryDiagnostic(control) {
+            retriedControl = control;
+            diagnosticState = Diagnostics.retryControl(diagnosticState, control);
+        }
+
         function resetDiagnostics() {
             diagnosticState = root.initialDiagnosticState();
         }
@@ -283,6 +289,11 @@ ShellRoot {
                 root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
                 root.expect(panel.defaultWindowWidth === 1120 && panel.defaultWindowHeight === 760, "expanded default size");
                 root.expect(panel.selectedBottomView === "live", "live input opens selected");
+                root.expect(panel.actionCursorRow === "mode" && panel.actionCursorIndex === 0, "live mode receives initial action cursor");
+                panel.cycleController(1);
+                root.expect(fakeService.selectedId === "11" && panel.selectedBottomView === "live", "tab cycles controllers without moving action cursor");
+                panel.cycleController(-1);
+                root.expect(fakeService.selectedId === "12", "shift-tab cycles controllers back");
                 root.expect(panel.guidedDiagnosticTitle === "GUIDED DIAGNOSTIC", "guided diagnostic title");
                 root.expect(panel.liveButtonCount === panel.controller.capabilities.buttons.length, "all live buttons represented");
                 root.expect(panel.liveDigitalControlCount === panel.controller.capabilities.buttons.length + 2, "digital triggers join live buttons");
@@ -294,22 +305,41 @@ ShellRoot {
                 root.expect(panel.liveDigitalControlNames[18] === "right_paddle1", "unprofiled controls follow profile controls");
                 root.expect(panel.pressedButtonsLabel() === "None", "live button summary");
                 var liveContentHeight = panel.inputContentHeight;
-                panel.moveFocusRegion(1);
                 root.expect(panel.liveButtonsScrollable, "maximum live buttons remain scrollable");
-                panel.handleNavigation(0, 1);
-                root.expect(panel.liveButtonScrollPosition > 0, "keyboard scrolls live buttons");
+                panel.scrollVisibleContent(1, true);
+                root.expect(panel.liveButtonScrollPosition > 0, "page navigation scrolls live buttons");
                 panel.handleNavigation(1, 0);
-                root.expect(panel.selectedBottomView === "guided", "keyboard guided view selection");
+                root.expect(panel.selectedBottomView === "guided" && panel.actionCursorRow === "mode" && panel.actionCursorIndex === 1,
+                    "horizontal navigation selects guided mode");
                 root.expect(panel.inputContentHeight === liveContentHeight, "mode content height stable");
+                panel.handleNavigation(0, 1);
+                root.expect(panel.actionCursorRow === "actions" && panel.actionCursorIndex === 0, "down reaches guided actions");
+                panel.handleNavigation(0, -1);
+                root.expect(panel.actionCursorRow === "mode", "up returns to input modes");
                 panel.handleNavigation(-1, 0);
                 root.expect(panel.selectedBottomView === "live", "keyboard live view selection");
-                panel.moveFocusRegion(-1);
-                root.expect(fakeService.beginDiagnostics(panel.controller, panel.controllerProfile), "diagnostic start");
+                panel.handleNavigation(1, 0);
+                panel.handleNavigation(0, 1);
+                panel.activateCurrentRegion();
                 root.expect(panel.diagnosticPhase === "baseline_waiting", "diagnostic waiting phase");
                 root.expect(panel.selectedBottomView === "guided", "diagnostic selects guided view");
+                root.phase = 13;
+                return;
+            }
+            if (root.phase === 13) {
+                root.expect(panel.actionCursorRow === "actions", "diagnostic keeps cursor on its action row");
+                panel.handleNavigation(0, -1);
+                root.expect(panel.actionCursorRow === "mode", "up reaches modes during diagnostic");
+                panel.handleNavigation(-1, 0);
+                root.expect(panel.selectedBottomView === "live", "active diagnostic allows live input view");
+                panel.open('{"view":"gamepads","controllerId":"11"}');
+                root.expect(panel.actionCursorRow === "mode", "active diagnostic reopen preserves action cursor");
+                panel.handleNavigation(1, 0);
+                root.expect(panel.selectedBottomView === "guided", "active diagnostic returns to guided view");
+                panel.cycleController(1);
+                root.expect(fakeService.selectedId === "12", "diagnostic locks tab controller cycling");
                 panel.selectController("11");
                 root.expect(fakeService.selectedId === "12", "diagnostic selection lock");
-                panel.open('{"view":"gamepads","controllerId":"11"}');
                 root.expect(fakeService.selectedId === "12", "diagnostic payload selection lock");
                 fakeService.selectController("11");
                 root.expect(fakeService.streamingId === "12", "diagnostic streaming binding");
@@ -318,13 +348,28 @@ ShellRoot {
                 root.expect(panel.opened && panel.cancelConfirmationOpen, "diagnostic close confirmation");
                 panel.confirmDiagnosticCancel();
                 root.expect(panel.diagnosticPhase === "review" && fakeService.diagnosticState.status === "incomplete", "diagnostic cancel review");
+                panel.handleNavigation(0, 1);
+                root.expect(panel.actionCursorRow === "retry", "review exposes retry target row");
+                var retryControl = panel.retryCursorControl;
+                panel.handleNavigation(1, 0);
+                root.expect(panel.retryCursorControl !== retryControl, "horizontal navigation changes retry target");
+                var selectedRetryControl = panel.retryCursorControl;
+                panel.activateCurrentRegion();
+                root.expect(panel.retryCursorControl === selectedRetryControl, "retry selector ignores action activation");
+                panel.handleNavigation(0, 1);
+                root.expect(panel.actionCursorRow === "actions", "down reaches review actions");
+                panel.activateCurrentRegion();
+                root.expect(fakeService.retriedControl === selectedRetryControl, "retry action uses visible target");
+                root.expect(panel.diagnosticPhase === "digital" && panel.actionCursorRow === "actions", "retry enters matching diagnostic phase with valid cursor");
+                fakeService.cancelDiagnostics();
+                root.expect(panel.diagnosticPhase === "review", "retry cancellation returns to review");
                 panel.selectController("11");
                 root.expect(fakeService.selectedId === "11", "review selection unlocked");
                 fakeService.selectController("12");
                 fakeService.resetDiagnostics();
                 root.expect(panel.selectedBottomView === "live", "reset selects live input");
-                panel.moveFocusRegion(-1);
-                panel.handleNavigation(-1, 0);
+                root.expect(panel.actionCursorRow === "mode", "reset restores mode cursor");
+                panel.cycleController(-1);
                 root.expect(fakeService.selectedId === "11", "keyboard device navigation");
                 root.phase = 1;
                 return;
@@ -369,7 +414,16 @@ ShellRoot {
                 root.expect(fakeService.selectedId === "12", "neighbor selection");
                 root.expect(panel.streamingControllerId === "12", "neighbor streaming");
                 fakeService.removeController("11");
+                root.expect(panel.tabCount === 1 && panel.actionCursorRow === "mode", "hotplug preserves action cursor");
+                panel.selectController("12");
+                panel.cycleController(1);
+                root.expect(fakeService.selectedId === "12", "single-controller tab is a no-op");
+                panel.handleNavigation(1, 0);
+                root.expect(panel.selectedBottomView === "guided", "input mode navigation survives hotplug");
+                panel.handleNavigation(-1, 0);
+                root.expect(panel.selectedBottomView === "live", "input mode navigation returns after hotplug");
                 fakeService.removeController("12");
+                root.expect(panel.actionCursorRow === "mode", "empty controller list preserves action cursor");
                 root.phase = 4;
                 return;
             }

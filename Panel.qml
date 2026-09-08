@@ -29,7 +29,6 @@ Item {
     property var registeredStreamingService: null
     property string registeredStreamingId: ""
     property string exportMessage: ""
-    property int focusRegion: 0
 
     readonly property bool opened: detailsWindow.visible
     readonly property var controller: service ? service.selectedController : null
@@ -58,6 +57,10 @@ Item {
     readonly property real inputContentHeight: diagnosticTray.modeContentHeight
     readonly property bool liveButtonsScrollable: diagnosticTray.liveButtonsScrollable
     readonly property real liveButtonScrollPosition: diagnosticTray.liveButtonScrollPosition
+    readonly property string actionCursorRow: diagnosticTray.cursorRow
+    readonly property int actionCursorIndex: diagnosticTray.cursorRow === "mode" ? diagnosticTray.modeIndex
+        : (diagnosticTray.cursorRow === "retry" ? diagnosticTray.retryIndex : diagnosticTray.actionIndex)
+    readonly property string retryCursorControl: diagnosticTray.selectedRetryControl()
     readonly property real defaultWindowWidth: detailsWindow.implicitWidth
     readonly property real defaultWindowHeight: detailsWindow.implicitHeight
     readonly property bool cancelConfirmationOpen: cancelDialog.opened
@@ -95,12 +98,7 @@ Item {
         syncStreamingRequest();
         if (diagnosticPhase !== "review")
             exportMessage = "";
-        var regions = availableFocusRegions();
-        if (diagnosticPhase === "idle")
-            focusRegion = 1;
-        else if (regions.indexOf(focusRegion) === -1)
-            focusRegion = diagnosticTray.guidedVisible ? 2 : 1;
-        Qt.callLater(focusCurrentRegion);
+        Qt.callLater(diagnosticTray.normalizeCursor);
     }
 
     function localPath(url) {
@@ -156,7 +154,8 @@ Item {
             service.selectController(payload.controllerId);
         if (!diagnosticSessionOpen)
             diagnosticTray.setSelectedView("live");
-        focusRegion = diagnosticSessionOpen && diagnosticTray.hasVisibleActions ? 2 : (diagnosticSessionOpen ? 1 : 0);
+        else
+            diagnosticTray.normalizeCursor();
         openRequested = true;
         closingFromHost = false;
         if (windowRuleReady)
@@ -252,61 +251,16 @@ Item {
         return false;
     }
 
-    function availableFocusRegions() {
-        var regions = [];
-        if (tabCount > 0 && !diagnosticActive)
-            regions.push(0);
-        if (diagnosticTray.visible)
-            regions.push(1);
-        if (diagnosticTray.hasVisibleActions)
-            regions.push(2);
-        return regions;
-    }
-
     function focusCurrentRegion() {
         keyCatcher.forceActiveFocus();
     }
 
-    function moveFocusRegion(direction) {
-        var regions = availableFocusRegions();
-        if (regions.length === 0) {
-            keyCatcher.forceActiveFocus();
-            return;
-        }
-        var index = regions.indexOf(focusRegion);
-        if (index < 0)
-            index = direction < 0 ? 0 : -1;
-        focusRegion = regions[(index + (direction < 0 ? -1 : 1) + regions.length) % regions.length];
-        focusCurrentRegion();
-    }
-
     function handleNavigation(dx, dy) {
-        if (focusRegion === 2 && diagnosticTray.hasVisibleActions) {
-            if (dx !== 0)
-                diagnosticTray.moveAction(dx);
-            else if (dy !== 0 && !diagnosticTray.moveRetry(dy))
-                diagnosticTray.scrollGuidedContent(dy);
-            return;
-        }
-        if (focusRegion === 1 && dx !== 0) {
-            diagnosticTray.moveMode(dx);
-            return;
-        }
-        if (focusRegion === 1 && dy !== 0) {
-            if (diagnosticTray.scrollLiveButtons(dy) || diagnosticTray.scrollGuidedContent(dy))
-                return;
-        }
-        if (focusRegion === 0 && dx !== 0 && tabCount > 1) {
-            cycleController(dx);
-            return;
-        }
-        if (dy !== 0)
-            scrollContent(dy, false);
+        diagnosticTray.moveCursor(dx, dy);
     }
 
     function activateCurrentRegion() {
-        if (focusRegion === 2 && diagnosticTray.hasVisibleActions)
-            diagnosticTray.activateCurrentAction();
+        diagnosticTray.activateCursor();
     }
 
     function scrollContent(direction, page) {
@@ -315,6 +269,18 @@ Item {
         var amount = page ? Math.max(Style.space(80), scroll.height * 0.8) : Style.space(48);
         var maximum = Math.max(0, scroll.contentItem.contentHeight - scroll.contentItem.height);
         scroll.contentItem.contentY = Math.max(0, Math.min(maximum, scroll.contentItem.contentY + (direction < 0 ? -amount : amount)));
+    }
+
+    function scrollVisibleContent(direction, page) {
+        if (!diagnosticTray.scrollVisibleContent(direction, page))
+            scrollContent(direction, page);
+    }
+
+    function scrollVisibleContentToEdge(end) {
+        if (diagnosticTray.scrollVisibleContentToEdge(end))
+            return;
+        if (scroll.contentItem)
+            scroll.contentItem.contentY = end ? Math.max(0, scroll.contentItem.contentHeight - scroll.contentItem.height) : 0;
     }
 
     function resetScroll() {
@@ -526,19 +492,16 @@ Item {
                         cancelDialog.confirmed();
                     event.accepted = true;
                 } else if (event.key === Qt.Key_PageDown) {
-                    root.scrollContent(1, true);
+                    root.scrollVisibleContent(1, true);
                     event.accepted = true;
                 } else if (event.key === Qt.Key_PageUp) {
-                    root.scrollContent(-1, true);
+                    root.scrollVisibleContent(-1, true);
                     event.accepted = true;
                 } else if (event.key === Qt.Key_Home) {
-                    if (scroll.contentItem)
-                        scroll.contentItem.contentY = 0;
+                    root.scrollVisibleContentToEdge(false);
                     event.accepted = true;
                 } else if (event.key === Qt.Key_End) {
-                    root.scrollContent(1, true);
-                    if (scroll.contentItem)
-                        scroll.contentItem.contentY = Math.max(0, scroll.contentItem.contentHeight - scroll.contentItem.height);
+                    root.scrollVisibleContentToEdge(true);
                     event.accepted = true;
                 }
             }
@@ -551,7 +514,7 @@ Item {
                     root.handleNavigation(dx, dy);
                 }
                 onTabRequested: function (direction) {
-                    root.moveFocusRegion(direction);
+                    root.cycleController(direction);
                 }
                 onActivateRequested: root.activateCurrentRegion()
                 onCloseRequested: root.handleCloseRequest()
@@ -615,10 +578,9 @@ Item {
                             foreground: root.foreground
                             background: root.background
                             fontFamily: root.fontFamily
-                            hasCursor: root.focusRegion === 0
+                            enabled: !root.diagnosticActive
                             opacity: root.diagnosticActive ? 0.55 : 1
                             onSelected: function (controllerId) {
-                                root.focusRegion = 0;
                                 root.selectController(controllerId);
                             }
                         }
@@ -877,14 +839,6 @@ Item {
                             enabled: !cancelDialog.opened
                             testedControllerPresent: root.testedControllerPresent
                             compactLayout: detailsWindow.height < 650
-                            modeHasCursor: root.focusRegion === 1
-                            actionsHaveCursor: root.focusRegion === 2
-                            onSelectedViewChanged: {
-                                if (selectedView === "live" && root.focusRegion === 2)
-                                    root.focusRegion = 1;
-                            }
-                            onModeFocusRequested: root.focusRegion = 1
-                            onActionFocusRequested: root.focusRegion = 2
                             onCancelRequested: root.showCancelConfirmation()
                             onExportRequested: root.exportDiagnosticReport()
                         }

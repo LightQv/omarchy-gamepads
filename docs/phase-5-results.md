@@ -19,7 +19,7 @@
 - A sticks-first Live layout with both plots on the left and button-style controls on the right in profile-defined order, followed by unprofiled controls.
 - Numeric `0.00` to `1.00` ZL/ZR values with press-threshold highlighting, movement-threshold highlighting for stick plot boxes, and continuously moving stick dots.
 - Consistent checkbox-style rows with markers left and labels right for non-trigger controls across Live and Guided, plus wrapped Guided controls and threshold-aware automatic stage progression.
-- Left/Right arrows and `h`/`l` mode navigation routed through the centralized panel key catcher.
+- Tab/Shift+Tab controller cycling plus spatial arrow and `h`/`j`/`k`/`l` navigation across input modes, retry selection, and guided actions through the centralized panel key catcher.
 - Bottom-right review actions and immutable completed results across later connection changes.
 - Reusable Omarchy-style directional edge fades for every overflowing viewport: compact content, controller tabs, controller information, Live buttons, and the Guided checklist.
 
@@ -34,7 +34,7 @@
 
 - A clean Omarchy shell restart loaded one helper and the connected wired Switch Pro controller.
 - Details opened floating at `1120x760` with `Live Input` selected and the unchanged header/device row.
-- Keyboard-only Tab, arrows or `h`/`l`, and Enter selected `Guided Diagnostic` through the panel key catcher, started the session, and completed the timed neutral baseline.
+- Keyboard-only arrows or `h`/`j`/`k`/`l` and Enter selected `Guided Diagnostic` through the panel key catcher, started the session, and completed the timed neutral baseline; Tab/Shift+Tab remained dedicated to controller cycling.
 - The digital tray showed all 18 controls wrapped across two rows, completion count, and the next expected control without hiding the persistent information or visual panes.
 - The stick stage showed live X/Y values, a two-dimensional position marker, and independent full-range direction indicators.
 - Switching to `Live Input` during an active test preserved the session and displayed an explicit running-test indicator.
