@@ -34,6 +34,10 @@ does not prevent controller vitals or diagnostics from loading. Keep semantic
 projection in `VisualState.js`, preserve declared model-part names, and run the
 present and absent module checks described in the release checklist.
 
+Production asset maintainers also need Blender and Assimp from the official
+repository. Run `scripts/check-model-toolchain.sh` before changing source or
+runtime geometry. These tools are not runtime dependencies.
+
 ## Controller Profiles
 
 Controller-specific behavior belongs in explicit profiles or narrowly matched

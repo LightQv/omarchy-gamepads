@@ -8,6 +8,7 @@ All notable changes to this project will be documented here.
 - Add distinct overview, diagnostic, and review visualization modes.
 - Add controller, pointer, and dedicated keyboard camera interaction with reset.
 - Add strict visual-profile, animation, scene-loading, and missing-module checks.
+- Add the Phase 7 model contract, provenance records, and maintainer toolchain check.
 
 ## [1.0.0] - 2026-09-08
 
