@@ -87,13 +87,11 @@ function exerciseAxis(state, name) {
 function successfulSession() {
   let state = baseline(Diagnostics.startSession(controller(), profile));
   state = exerciseDigital(state);
-  state = Diagnostics.advancePhase(state);
   state = exerciseAxis(state, "leftx");
   state = exerciseAxis(state, "lefty");
-  state = Diagnostics.advancePhase(state);
   state = exerciseAxis(state, "rightx");
   state = exerciseAxis(state, "righty");
-  return Diagnostics.advancePhase(state);
+  return state;
 }
 
 test("completes every expected control without mutating prior states", () => {
@@ -129,7 +127,7 @@ test("reports center drift, baseline noise, and deficient range as warnings", ()
     { leftx: 0.2, lefty: 0, rightx: 0, righty: 0 },
     { leftx: 0.3, lefty: 0, rightx: 0, righty: 0 }
   ]);
-  state = Diagnostics.advancePhase(exerciseDigital(state));
+  state = exerciseDigital(state);
   state = Diagnostics.ingest(state, input("41", {}, { leftx: -0.3 }));
   state = Diagnostics.ingest(state, input("41", {}, { leftx: 0.5 }));
   state = Diagnostics.finalize(state);
@@ -154,7 +152,7 @@ test("distinguishes missing, partial, and unavailable input", () => {
 
 test("treats one-sided analog movement as a warning", () => {
   let state = baseline(Diagnostics.startSession(controller(), profile));
-  state = Diagnostics.advancePhase(exerciseDigital(state));
+  state = exerciseDigital(state);
   state = Diagnostics.ingest(state, input("41", {}, { leftx: 0.9 }));
   state = Diagnostics.finalize(state);
   assert.equal(state.results.leftx.status, "warning");
@@ -185,7 +183,7 @@ test("retry resets only one digital or analog control", () => {
   assert.equal(state.results.north.status, "passed");
   state = Diagnostics.ingest(state, input("41", { south: true }));
   state = Diagnostics.ingest(state, input("41", { south: false }));
-  state = Diagnostics.finalize(state);
+  assert.equal(state.phase, "review");
   assert.equal(state.results.south.status, "passed");
 
   state = Diagnostics.retryControl(state, "rightx");
@@ -193,10 +191,53 @@ test("retry resets only one digital or analog control", () => {
   assert.equal(state.results.rightx.minimum, null);
   assert.equal(state.results.righty.status, "passed");
   const rightySamples = state.results.righty.samples;
-  state = Diagnostics.ingest(state, input("41", {}, { righty: 0 }));
+  state = Diagnostics.ingest(state, input("41", {}, { righty: 0.4 }));
   assert.equal(state.results.righty.samples, rightySamples);
-  state = Diagnostics.finalize(exerciseAxis(state, "rightx"));
+  assert.equal(state.currentAxes.righty, 0.4);
+  state = exerciseAxis(state, "rightx");
+  assert.equal(state.phase, "review");
   assert.equal(state.results.rightx.status, "passed");
+});
+
+test("advances completed stages but waits for configured stick range", () => {
+  let state = baseline(Diagnostics.startSession(controller(), profile));
+  state = exerciseDigital(state);
+  assert.equal(state.phase, "analog_left");
+
+  state = Diagnostics.ingest(state, input("41", {}, { leftx: -0.3, lefty: -0.9 }));
+  state = Diagnostics.ingest(state, input("41", {}, { leftx: 0.3, lefty: 0.9 }));
+  assert.equal(state.phase, "analog_left");
+  state = exerciseAxis(state, "leftx");
+  assert.equal(state.phase, "analog_right");
+
+  state = exerciseAxis(state, "rightx");
+  assert.equal(state.phase, "analog_right");
+  state = exerciseAxis(state, "righty");
+  assert.equal(state.phase, "review");
+});
+
+test("manual progression remains available for missing stages", () => {
+  let state = baseline(Diagnostics.startSession(controller(), profile));
+  assert.equal(state.phase, "digital");
+  state = Diagnostics.advancePhase(state);
+  assert.equal(state.phase, "analog_left");
+  state = Diagnostics.advancePhase(state);
+  assert.equal(state.phase, "analog_right");
+  state = Diagnostics.advancePhase(state);
+  assert.equal(state.phase, "review");
+  assert.equal(state.status, "not_detected");
+});
+
+test("completed review is immutable after controller removal", () => {
+  const state = successfulSession();
+  const disconnected = Diagnostics.disconnect(state, "41");
+  assert.notEqual(disconnected, state);
+  assert.equal(disconnected.phase, "review");
+  assert.equal(disconnected.connected, true);
+  assert.equal(disconnected.controllerPresent, false);
+  assert.equal(disconnected.status, "passed");
+  assert.deepEqual(disconnected.results, state.results);
+  assert.equal(Diagnostics.retryControl(disconnected, "south"), disconnected);
 });
 
 test("session remains bound to its original controller through selection changes", () => {
@@ -264,11 +305,8 @@ test("diagnostic replay fixtures drive success, warning, missing, and disconnect
   let state = Diagnostics.startSession(success[1].controllers[0], SwitchPro.profile);
   state = Diagnostics.finishBaseline(Diagnostics.startBaseline(state));
   for (const message of success.slice(2, 6)) state = Diagnostics.ingest(state, message);
-  state = Diagnostics.advancePhase(state);
   for (const message of success.slice(6, 8)) state = Diagnostics.ingest(state, message);
-  state = Diagnostics.advancePhase(state);
   for (const message of success.slice(8)) state = Diagnostics.ingest(state, message);
-  state = Diagnostics.advancePhase(state);
   assert.equal(state.status, "passed");
 
   const drift = replayFixture("diagnostic-drift-warning.ndjson");

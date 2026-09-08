@@ -40,11 +40,21 @@ ShellRoot {
             service.handleLine('{"type":"input","id":"12","sequence":5,"buttons":{"south":true},"axes":{}}');
             service.handleLine('{"type":"input","id":"12","sequence":6,"buttons":{"south":false},"axes":{}}');
             valid = valid && service.diagnosticState.results.south.pressed && service.diagnosticState.results.south.released;
+            service.interruptDiagnostics();
+            valid = valid && service.diagnosticState.phase === "review"
+                && service.diagnosticState.status === "incomplete"
+                && service.diagnosticState.connected === false;
+            valid = valid && service.beginDiagnostics(controller, profile);
+            service.beginDiagnosticBaseline();
+            service.finishDiagnosticBaseline();
+            service.finalizeDiagnostics();
+            var reviewStatus = service.diagnosticState.status;
             service.handleLine('{"type":"removed","id":"12","sequence":7}');
             valid = valid && service.diagnosticState.controllerId === "12"
                 && service.diagnosticState.phase === "review"
-                && service.diagnosticState.status === "incomplete"
-                && service.diagnosticState.connected === false;
+                && service.diagnosticState.status === reviewStatus
+                && service.diagnosticState.connected === true
+                && service.diagnosticState.controllerPresent === false;
             console.log(valid ? "SERVICE_DIAGNOSTICS_SMOKE_OK" : "SERVICE_DIAGNOSTICS_SMOKE_FAILED");
             Qt.quit();
         }

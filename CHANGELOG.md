@@ -14,3 +14,6 @@ All notable changes to this project will be documented here.
 - Add hotplug-safe selection and visible selected-controller streaming.
 - Refine Details into persistent information and visual panes with monitor-aware sizing for guided diagnostics and 3D.
 - Add profile-driven guided diagnostics, reviewable status results, deterministic fixtures, and explicit privacy-safe report export.
+- Separate live input from guided diagnostics inside one stable bordered surface with first-row mode tabs, sticks-first live layout, threshold-aware stick and digital-trigger highlights, consistent left-side checkbox markers, centralized keyboard navigation, automatic stage progression, and immutable completed reviews.
+- Refine the diagnostic surface with no external section title, controller-tab-matched content spacing, `Guided Diagnostic` terminology, profile-defined Switch control order, and numeric ZL/ZR values.
+- Add Omarchy-style directional edge fades to every overflowing compact and Details viewport.

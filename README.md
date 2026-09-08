@@ -2,7 +2,7 @@
 
 Omarchy Gamepads is an Omarchy shell plugin for controller vitals, interactive visualization, and guided input diagnostics. Nintendo Switch Pro Controller support is the initial target.
 
-The repository currently contains the protocol version 1 backend, shared QML service, native compact bar panel, and a floating Details window with physical-controller tabs, a unified profile-aware workspace, live textual input, and guided diagnostics. The interactive 3D model remains under development.
+The repository currently contains the protocol version 1 backend, shared QML service, native compact bar panel, and a floating Details window with physical-controller tabs, a unified profile-aware workspace, and bottom `Live Input` and `Guided Diagnostic` views. The interactive 3D model remains under development.
 
 ## Installation
 
@@ -43,7 +43,7 @@ Detailed controller behavior is isolated in `profiles/`. The initial Switch Pro 
 
 ## Guided Diagnostics
 
-The full-width Details tray captures a neutral baseline, verifies post-baseline press and release edges, measures each stick direction independently, and presents a review before export. Results use `passed`, `warning`, `not_detected`, `incomplete`, and `unavailable`; they do not assert that hardware is broken. Export is always explicit and atomically publishes each private JSON/Markdown report pair in a unique directory under `~/.local/state/omarchy-gamepads/reports/`.
+A single bordered, stable-height surface begins with `Live Input` and `Guided Diagnostic` tabs, separated from the selected view by the same spacing used below the controller tabs. Live places both stick plots first and on the left, with button-style controls on the right. Switch controls follow their physical-profile order from B through ZR; unknown mapped controls follow the profile controls. ZL/ZR remain threshold-highlighted but show their live `0.00` to `1.00` values instead of checkbox markers. Other checkbox-style markers stay left of their labels across both modes. Each stick dot follows live input continuously while its plot box highlights only at the movement threshold. The centralized panel key catcher routes Left/Right or `h`/`l` to the mode tabs. Every overflowing viewport uses Omarchy-style directional edge fades: each fade appears only while more content remains beyond that edge. This covers the compact panel, controller tabs, controller information, Live buttons, and the Guided checklist. The guided diagnostic captures a neutral baseline, verifies post-baseline press and release edges, automatically advances completed stages, visualizes live stick range progress, and presents immutable results before export. Results use `passed`, `warning`, `not_detected`, `incomplete`, and `unavailable`; they do not assert that hardware is broken. Export is always explicit and atomically publishes each private JSON/Markdown report pair in a unique directory under `~/.local/state/omarchy-gamepads/reports/`.
 
 ## Validation
 
@@ -58,7 +58,7 @@ python -m compileall -q scripts tests
 python -m unittest discover -s tests -v
 ```
 
-The service and panel smoke tests require Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`. They cover selected-controller streaming, tab hotplug behavior, persistent profile visuals, diagnostic lifecycle and disconnect handling, unsupported profiles, unified live input, and host-close cleanup. Details-window placement uses the `hyprctl` and `jq` tools included with Omarchy to float, center, and move the existing window to the active workspace; its `960x680` target is capped to the focused monitor's usable logical area, and its process-scoped pre-map rule is disabled immediately after placement.
+The service and panel smoke tests require Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`. They cover selected-controller streaming, tab hotplug behavior, persistent profile visuals, diagnostic lifecycle and disconnect handling, unsupported profiles, unified live input, and host-close cleanup. Details-window placement uses the `hyprctl` and `jq` tools included with Omarchy to float, center, and move the existing window to the active workspace; its `1120x760` target is capped to the focused monitor's usable logical area, and its process-scoped pre-map rule is disabled immediately after placement.
 
 ## Security
 

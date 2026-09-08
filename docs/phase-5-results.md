@@ -14,20 +14,32 @@
 - Keyboard actions, active-session close confirmation, and controller-selection locking.
 - Explicit JSON and Markdown export with an allowlisted report projection, private permissions, no-follow directory traversal, and collision-safe atomic publication.
 - Deterministic success, drift, missing-input, and disconnect fixtures.
+- Bottom `Live Input` and `Guided Diagnostic` modes with live input selected whenever Details opens without an existing diagnostic.
+- A single bordered, stable-height surface with mode tabs as its first row, no external section title, and controller-tab-matched spacing below the tabs.
+- A sticks-first Live layout with both plots on the left and button-style controls on the right in profile-defined order, followed by unprofiled controls.
+- Numeric `0.00` to `1.00` ZL/ZR values with press-threshold highlighting, movement-threshold highlighting for stick plot boxes, and continuously moving stick dots.
+- Consistent checkbox-style rows with markers left and labels right for non-trigger controls across Live and Guided, plus wrapped Guided controls and threshold-aware automatic stage progression.
+- Left/Right arrows and `h`/`l` mode navigation routed through the centralized panel key catcher.
+- Bottom-right review actions and immutable completed results across later connection changes.
+- Reusable Omarchy-style directional edge fades for every overflowing viewport: compact content, controller tabs, controller information, Live buttons, and the Guided checklist.
 
 ## Automated Validation
 
-- Pure diagnostic tests cover successful completion, held baseline input, drift/noise/range warnings, unavailable controls, missing and partial input, one-sided movement, retry, cancellation, disconnect, status vocabulary, and report privacy.
-- QML service smoke coverage verifies direct accepted-edge ingestion and original-controller disconnect handling.
-- QML panel smoke coverage verifies selection locking and the active-session close hierarchy.
+- Pure diagnostic tests cover successful completion, automatic and manual progression, threshold boundaries, held baseline input, drift/noise/range warnings, unavailable controls, missing and partial input, one-sided movement, retry, cancellation, active disconnect, immutable review, status vocabulary, and report privacy.
+- QML service smoke coverage verifies direct accepted-edge ingestion and distinct active-session and completed-review disconnect handling.
+- QML panel smoke coverage verifies centralized keyboard mode selection, stable mode height, live control and stick threshold states, active selection locking, review selection unlocking, and the active-session close hierarchy.
 - Python export tests verify export-only directory creation, private permissions, atomic cleanup, and malformed-payload rejection.
 
 ## Live Integration
 
 - A clean Omarchy shell restart loaded one helper and the connected wired Switch Pro controller.
-- Details opened floating at `960x680` with the compact start tray and unchanged header/device row.
-- Keyboard-only Tab and Enter started the session and completed the timed neutral baseline.
-- The digital tray showed all 18 controls, completion count, and the next expected control without hiding the persistent information or visual panes.
+- Details opened floating at `1120x760` with `Live Input` selected and the unchanged header/device row.
+- Keyboard-only Tab, arrows or `h`/`l`, and Enter selected `Guided Diagnostic` through the panel key catcher, started the session, and completed the timed neutral baseline.
+- The digital tray showed all 18 controls wrapped across two rows, completion count, and the next expected control without hiding the persistent information or visual panes.
+- The stick stage showed live X/Y values, a two-dimensional position marker, and independent full-range direction indicators.
+- Switching to `Live Input` during an active test preserved the session and displayed an explicit running-test indicator.
+- Review actions remained pinned to the bottom right and the review identified the frozen tested controller and transport.
+- At the `760x540` minimum, both main panes remained usable and every constrained viewport showed a theme-derived fade only where more content remained in that direction.
 - Escape opened the active-session confirmation; Right and Space ended the test and produced an incomplete review with all 22 untested controls classified as `incomplete` rather than `not_detected`.
 - Escape from review closed Details, synchronized the host, retained exactly one helper, and produced no plugin-attributed shell warning.
 - No report was written during live layout/lifecycle validation.

@@ -5,6 +5,7 @@ import QtQuick.Controls
 import qs.Commons
 import qs.Ui as Ui
 import "Model.js" as Model
+import "components" as Components
 
 Ui.Panel {
     id: root
@@ -511,6 +512,12 @@ Ui.Panel {
                             root.service.retry()
                     }
                 }
+            }
+
+            Components.ScrollEdgeFades {
+                anchors.fill: parent
+                flickable: scroll.contentItem
+                background: Color.popups.background
             }
         }
     }

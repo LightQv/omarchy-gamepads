@@ -28,6 +28,11 @@ test("resolves the Switch Pro profile and semantic labels", () => {
   assert.equal(profile.id, "switch-pro");
   assert.equal(Registry.labelFor(profile, "south"), "B");
   assert.equal(profile.semanticParts.south, "button_b");
+  assert.deepEqual(Array.from(profile.expectedButtons), [
+    "south", "east", "west", "north", "back", "start", "misc1", "guide",
+    "left_stick", "right_stick", "dpad_up", "dpad_down", "dpad_left",
+    "dpad_right", "left_shoulder", "right_shoulder"
+  ]);
 });
 
 test("provides valid profile-owned diagnostic thresholds", () => {

@@ -27,9 +27,9 @@ var profile = {
     right_stick: "Right stick"
   },
   expectedButtons: [
-    "south", "east", "west", "north", "dpad_up", "dpad_down",
-    "dpad_left", "dpad_right", "left_shoulder", "right_shoulder",
-    "back", "start", "guide", "misc1", "left_stick", "right_stick"
+    "south", "east", "west", "north", "back", "start", "misc1", "guide",
+    "left_stick", "right_stick", "dpad_up", "dpad_down", "dpad_left",
+    "dpad_right", "left_shoulder", "right_shoulder"
   ],
   expectedAxes: ["leftx", "lefty", "rightx", "righty", "left_trigger", "right_trigger"],
   triggerType: "digital",

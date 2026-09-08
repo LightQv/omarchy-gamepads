@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import "Plugin" as Plugin
+import "Plugin/components" as Components
 import "Plugin/Diagnostics.js" as Diagnostics
 
 // qmllint disable unqualified
@@ -50,7 +51,7 @@ ShellRoot {
                 state: id === "12" ? "on_battery" : "charging"
             },
             capabilities: {
-                buttons: ["south"],
+                buttons: ["south", "east", "west", "north", "back", "guide", "start", "left_stick", "right_stick", "left_shoulder", "right_shoulder", "dpad_up", "dpad_down", "dpad_left", "dpad_right", "misc1", "right_paddle1", "left_paddle1", "right_paddle2", "left_paddle2", "touchpad", "misc2", "misc3", "misc4", "misc5", "misc6"],
                 axes: ["leftx", "lefty", "rightx", "righty", "left_trigger", "right_trigger"]
             },
             buttons: {
@@ -144,14 +145,18 @@ ShellRoot {
                 selectedId = next.length === 0 ? "" : next[Math.min(Math.max(0, removedIndex), next.length - 1)].id;
         }
 
-        function updateSelectedInput() {
+        function updateSelectedInput(leftX, leftTrigger) {
             var next = controllers.slice();
             for (var i = 0; i < next.length; i++) {
                 if (next[i].id !== selectedId)
                     continue;
                 var updated = Object.assign({}, next[i]);
+                updated.buttons = Object.assign({}, next[i].buttons, {
+                    south: true
+                });
                 updated.axes = Object.assign({}, next[i].axes, {
-                    leftx: 0.5
+                    leftx: leftX === undefined ? 0.5 : leftX,
+                    left_trigger: leftTrigger === undefined ? 1 : leftTrigger
                 });
                 next[i] = updated;
                 break;
@@ -194,6 +199,45 @@ ShellRoot {
         }
     }
 
+    Item {
+        visible: false
+        width: 100
+        height: 100
+
+        Flickable {
+            id: verticalFadeViewport
+            anchors.fill: parent
+            contentWidth: width
+            contentHeight: 200
+        }
+
+        Components.ScrollEdgeFades {
+            id: verticalFades
+            anchors.fill: parent
+            flickable: verticalFadeViewport
+        }
+    }
+
+    Item {
+        visible: false
+        width: 100
+        height: 100
+
+        Flickable {
+            id: horizontalFadeViewport
+            anchors.fill: parent
+            contentWidth: 200
+            contentHeight: height
+        }
+
+        Components.ScrollEdgeFades {
+            id: horizontalFades
+            anchors.fill: parent
+            flickable: horizontalFadeViewport
+            orientation: Qt.Horizontal
+        }
+    }
+
     Plugin.Panel {
         id: panel
         shell: fakeShell
@@ -216,6 +260,20 @@ ShellRoot {
             if (!panel.opened)
                 return;
             if (root.phase === 0) {
+                root.expect(verticalFades.startOpacity === 0 && verticalFades.endOpacity > 0, "vertical fade at start");
+                verticalFadeViewport.contentY = 50;
+                root.expect(verticalFades.startOpacity > 0 && verticalFades.endOpacity > 0, "vertical fades in middle");
+                verticalFadeViewport.contentY = 100;
+                root.expect(verticalFades.startOpacity > 0 && verticalFades.endOpacity === 0, "vertical fade at end");
+                verticalFadeViewport.contentHeight = 100;
+                root.expect(verticalFades.startOpacity === 0 && verticalFades.endOpacity === 0, "vertical fades hidden without overflow");
+                root.expect(horizontalFades.startOpacity === 0 && horizontalFades.endOpacity > 0, "horizontal fade at start");
+                horizontalFadeViewport.contentX = 50;
+                root.expect(horizontalFades.startOpacity > 0 && horizontalFades.endOpacity > 0, "horizontal fades in middle");
+                horizontalFadeViewport.contentX = 100;
+                root.expect(horizontalFades.startOpacity > 0 && horizontalFades.endOpacity === 0, "horizontal fade at end");
+                horizontalFadeViewport.contentWidth = 100;
+                root.expect(horizontalFades.startOpacity === 0 && horizontalFades.endOpacity === 0, "horizontal fades hidden without overflow");
                 root.expect(panel.tabCount === 2, "initial tabs");
                 root.expect(fakeService.selectedId === "12", "payload selection");
                 root.expect(panel.selectedProfileId === "switch-pro", "profile selection");
@@ -223,9 +281,32 @@ ShellRoot {
                 root.expect(panel.visualProfileActive, "persistent profile visual");
                 root.expect(panel.informationFits, "default information fit");
                 root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
+                root.expect(panel.defaultWindowWidth === 1120 && panel.defaultWindowHeight === 760, "expanded default size");
+                root.expect(panel.selectedBottomView === "live", "live input opens selected");
+                root.expect(panel.guidedDiagnosticTitle === "GUIDED DIAGNOSTIC", "guided diagnostic title");
+                root.expect(panel.liveButtonCount === panel.controller.capabilities.buttons.length, "all live buttons represented");
+                root.expect(panel.liveDigitalControlCount === panel.controller.capabilities.buttons.length + 2, "digital triggers join live buttons");
+                root.expect(JSON.stringify(panel.liveDigitalControlNames.slice(0, 18)) === JSON.stringify([
+                    "south", "east", "west", "north", "back", "start", "misc1", "guide",
+                    "left_stick", "right_stick", "dpad_up", "dpad_down", "dpad_left", "dpad_right",
+                    "left_shoulder", "right_shoulder", "left_trigger", "right_trigger"
+                ]), "profile controls use requested order");
+                root.expect(panel.liveDigitalControlNames[18] === "right_paddle1", "unprofiled controls follow profile controls");
                 root.expect(panel.pressedButtonsLabel() === "None", "live button summary");
+                var liveContentHeight = panel.inputContentHeight;
+                panel.moveFocusRegion(1);
+                root.expect(panel.liveButtonsScrollable, "maximum live buttons remain scrollable");
+                panel.handleNavigation(0, 1);
+                root.expect(panel.liveButtonScrollPosition > 0, "keyboard scrolls live buttons");
+                panel.handleNavigation(1, 0);
+                root.expect(panel.selectedBottomView === "guided", "keyboard guided view selection");
+                root.expect(panel.inputContentHeight === liveContentHeight, "mode content height stable");
+                panel.handleNavigation(-1, 0);
+                root.expect(panel.selectedBottomView === "live", "keyboard live view selection");
+                panel.moveFocusRegion(-1);
                 root.expect(fakeService.beginDiagnostics(panel.controller, panel.controllerProfile), "diagnostic start");
                 root.expect(panel.diagnosticPhase === "baseline_waiting", "diagnostic waiting phase");
+                root.expect(panel.selectedBottomView === "guided", "diagnostic selects guided view");
                 panel.selectController("11");
                 root.expect(fakeService.selectedId === "12", "diagnostic selection lock");
                 panel.open('{"view":"gamepads","controllerId":"11"}');
@@ -237,7 +318,12 @@ ShellRoot {
                 root.expect(panel.opened && panel.cancelConfirmationOpen, "diagnostic close confirmation");
                 panel.confirmDiagnosticCancel();
                 root.expect(panel.diagnosticPhase === "review" && fakeService.diagnosticState.status === "incomplete", "diagnostic cancel review");
+                panel.selectController("11");
+                root.expect(fakeService.selectedId === "11", "review selection unlocked");
+                fakeService.selectController("12");
                 fakeService.resetDiagnostics();
+                root.expect(panel.selectedBottomView === "live", "reset selects live input");
+                panel.moveFocusRegion(-1);
                 panel.handleNavigation(-1, 0);
                 root.expect(fakeService.selectedId === "11", "keyboard device navigation");
                 root.phase = 1;
@@ -245,12 +331,24 @@ ShellRoot {
             }
             if (root.phase === 1) {
                 root.expect(panel.streamingControllerId === "11", "selection streaming");
-                fakeService.updateSelectedInput();
+                fakeService.updateSelectedInput(0.19, 0.74);
                 root.phase = 11;
                 return;
             }
             if (root.phase === 11) {
-                root.expect(panel.axisValue("leftx") === "0.50", "unified live input");
+                root.expect(panel.axisValue("leftx") === "0.19", "unified live input");
+                root.expect(panel.liveButtonIsPressed("south"), "live button state");
+                root.expect(!panel.liveButtonIsPressed("left_trigger"), "digital trigger below threshold");
+                root.expect(panel.liveControlIndicator("left_trigger") === "0.74", "digital trigger shows numeric value below threshold");
+                root.expect(!panel.liveLeftStickActive && !panel.liveRightStickActive, "sticks below movement threshold");
+                fakeService.updateSelectedInput(0.2, 0.75);
+                root.phase = 12;
+                return;
+            }
+            if (root.phase === 12) {
+                root.expect(panel.liveButtonIsPressed("left_trigger"), "digital trigger at threshold");
+                root.expect(panel.liveControlIndicator("left_trigger") === "0.75", "digital trigger shows numeric value at threshold");
+                root.expect(panel.liveLeftStickActive && !panel.liveRightStickActive, "stick at movement threshold");
                 root.expect(panel.streamingControllerId === "11", "input preserves streaming");
                 fakeService.addController(root.controller("13", "Xbox Wireless Controller", "xboxone", "xbox"));
                 root.expect(fakeService.selectedId === "11", "hotplug selection stability");

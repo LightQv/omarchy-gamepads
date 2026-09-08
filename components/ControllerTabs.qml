@@ -12,6 +12,7 @@ Item {
     property color foreground: Color.foreground
     property color background: Color.background
     property string fontFamily: Style.font.family
+    property bool hasCursor: false
     readonly property bool tabsFocused: tabGroup.activeFocus
     readonly property int tabCount: controllers.length
 
@@ -40,7 +41,7 @@ Item {
     }
 
     function focusTabs() {
-        tabGroup.forceActiveFocus();
+        // Keyboard focus remains on the panel-level key catcher.
     }
 
     function revealSelected() {
@@ -75,6 +76,8 @@ Item {
             id: tabGroup
             options: root.buildOptions()
             value: root.selectedId
+            focusable: false
+            cursorIndex: root.hasCursor ? Math.max(0, selectedOptionIndex()) : -1
             foreground: root.foreground
             background: root.background
             fontFamily: root.fontFamily
@@ -82,5 +85,12 @@ Item {
                 root.selected(value);
             }
         }
+    }
+
+    ScrollEdgeFades {
+        anchors.fill: parent
+        flickable: viewport
+        orientation: Qt.Horizontal
+        background: root.background
     }
 }

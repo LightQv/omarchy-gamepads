@@ -401,7 +401,10 @@ QtObject {
     }
 
     function retryDiagnostic(control) {
-        diagnosticState = Diagnostics.retryControl(diagnosticState, String(control || ""));
+        var next = Diagnostics.retryControl(diagnosticState, String(control || ""));
+        if (next !== diagnosticState && next.phase !== "review")
+            modelState = Model.selectController(modelState, next.controllerId);
+        diagnosticState = next;
     }
 
     function resetDiagnostics() {

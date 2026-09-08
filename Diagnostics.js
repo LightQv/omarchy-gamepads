@@ -20,6 +20,7 @@ function diagnosticInitialState() {
     phase: "idle",
     status: "incomplete",
     connected: false,
+    controllerPresent: false,
     interrupted: false,
     controllerId: "",
     controller: {},
@@ -104,6 +105,7 @@ function copyDiagnosticState(state) {
     phase: state.phase,
     status: state.status,
     connected: state.connected,
+    controllerPresent: state.controllerPresent,
     interrupted: state.interrupted,
     controllerId: state.controllerId,
     controller: copyMap(state.controller),
@@ -179,6 +181,7 @@ function startSession(controller, profile) {
 
   state.phase = "baseline_waiting";
   state.connected = true;
+  state.controllerPresent = true;
   state.controllerId = controller.id;
   state.controller = copyMap(controller);
   state.profileId = profile.id;
@@ -281,6 +284,35 @@ function captureAnalog(next, control, value) {
   if (value >= center + movement) result.positive = true;
 }
 
+function digitalComplete(result) {
+  return !!result && result.available && result.pressed && result.released;
+}
+
+function analogComplete(state, result) {
+  return !!result && result.available && result.negative && result.positive
+    && result.minimum !== null && result.maximum !== null
+    && result.minimum <= -threshold(state, "minimumNegativeRange", 0.75)
+    && result.maximum >= threshold(state, "minimumPositiveRange", 0.75);
+}
+
+function phaseComplete(state) {
+  var controls = state.phase === "digital" ? state.digitalControls : state.analogControls;
+  var available = 0;
+  for (var i = 0; i < controls.length; i++) {
+    var result = state.results[controls[i]];
+    if (!result.available || result.kind === "analog" && analogPhaseFor(result.control) !== state.phase) continue;
+    available++;
+    if (result.kind === "digital" ? !digitalComplete(result) : !analogComplete(state, result)) return false;
+  }
+  return available > 0;
+}
+
+function advanceWhenComplete(state) {
+  if (!phaseComplete(state)) return state;
+  if (state.retryTarget !== "") return finalize(state);
+  return advancePhase(state);
+}
+
 function ingestInput(state, message) {
   if (!state || !state.connected || !inputValuesValid(message)
       || message.id !== state.controllerId) return state;
@@ -291,19 +323,19 @@ function ingestInput(state, message) {
 
   for (var buttonIndex = 0; buttonIndex < buttonKeys.length; buttonIndex++) {
     var button = buttonKeys[buttonIndex];
-    if (next.retryTarget !== "" && next.retryTarget !== button) continue;
     var oldButton = next.currentButtons[button] === true;
     var newButton = message.buttons[button] === true;
     next.currentButtons[button] = newButton;
+    if (next.retryTarget !== "" && next.retryTarget !== button) continue;
     if (next.phase === "digital") captureDigitalEdge(next, button, oldButton, newButton);
   }
 
   for (var axisIndex = 0; axisIndex < axisKeys.length; axisIndex++) {
     var axis = axisKeys[axisIndex];
-    if (next.retryTarget !== "" && next.retryTarget !== axis) continue;
     var oldValue = Number(next.currentAxes[axis] || 0);
     var newValue = message.axes[axis];
     next.currentAxes[axis] = newValue;
+    if (next.retryTarget !== "" && next.retryTarget !== axis) continue;
     var result = next.results[axis];
     if (next.phase === "digital" && result && result.kind === "digital") {
       var press = threshold(next, "digitalTriggerPress", 0.65);
@@ -315,7 +347,8 @@ function ingestInput(state, message) {
       captureAnalog(next, axis, newValue);
     }
   }
-  return next.phase === "baseline_capturing" ? addBaselineSample(next) : next;
+  if (next.phase === "baseline_capturing") return addBaselineSample(next);
+  return advanceWhenComplete(next);
 }
 
 function finishBaseline(state) {
@@ -428,7 +461,7 @@ function cancelSession(state) {
 }
 
 function retryControl(state, control) {
-  if (!state || state.phase !== "review" || !state.connected || !hasOwn(state.results, control)) return state;
+  if (!state || state.phase !== "review" || !state.connected || !state.controllerPresent || !hasOwn(state.results, control)) return state;
   var old = state.results[control];
   if (!old.available) return state;
   var next = copyDiagnosticState(state);
@@ -447,6 +480,8 @@ function retryControl(state, control) {
 function disconnect(state, controllerId) {
   if (!state || state.phase === "idle" || controllerId !== state.controllerId) return state;
   var next = copyDiagnosticState(state);
+  next.controllerPresent = false;
+  if (state.phase === "review") return next;
   next.connected = false;
   next.interrupted = true;
   next.phase = "review";

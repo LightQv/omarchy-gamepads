@@ -28,7 +28,6 @@ Item {
     property var pendingCleanupTokens: []
     property var registeredStreamingService: null
     property string registeredStreamingId: ""
-    property var visibleAxisNames: []
     property string exportMessage: ""
     property int focusRegion: 0
 
@@ -48,6 +47,19 @@ Item {
     readonly property string diagnosticPhase: diagnosticState.phase || "idle"
     readonly property bool diagnosticActive: ["baseline_waiting", "baseline_capturing", "digital", "analog_left", "analog_right"].indexOf(diagnosticPhase) !== -1
     readonly property bool diagnosticSessionOpen: diagnosticPhase !== "idle"
+    readonly property bool testedControllerPresent: diagnosticControllerIsPresent()
+    readonly property string selectedBottomView: diagnosticTray.selectedView
+    readonly property int liveButtonCount: diagnosticTray.liveButtonCount
+    readonly property int liveDigitalControlCount: diagnosticTray.liveDigitalControlCount
+    readonly property var liveDigitalControlNames: diagnosticTray.liveDigitalControlNames
+    readonly property bool liveLeftStickActive: diagnosticTray.liveLeftStickActive
+    readonly property bool liveRightStickActive: diagnosticTray.liveRightStickActive
+    readonly property string guidedDiagnosticTitle: diagnosticTray.titleText()
+    readonly property real inputContentHeight: diagnosticTray.modeContentHeight
+    readonly property bool liveButtonsScrollable: diagnosticTray.liveButtonsScrollable
+    readonly property real liveButtonScrollPosition: diagnosticTray.liveButtonScrollPosition
+    readonly property real defaultWindowWidth: detailsWindow.implicitWidth
+    readonly property real defaultWindowHeight: detailsWindow.implicitHeight
     readonly property bool cancelConfirmationOpen: cancelDialog.opened
     readonly property string pluginId: manifest && manifest.id ? manifest.id : "lightqv.gamepads"
     readonly property color foreground: Color.foreground
@@ -77,13 +89,18 @@ Item {
     onServiceChanged: syncStreamingRequest()
     onControllerChanged: {
         syncStreamingRequest();
-        refreshAxisNames();
     }
     onSelectedControllerIdChanged: resetScroll()
     onDiagnosticPhaseChanged: {
         syncStreamingRequest();
         if (diagnosticPhase !== "review")
             exportMessage = "";
+        var regions = availableFocusRegions();
+        if (diagnosticPhase === "idle")
+            focusRegion = 1;
+        else if (regions.indexOf(focusRegion) === -1)
+            focusRegion = diagnosticTray.guidedVisible ? 2 : 1;
+        Qt.callLater(focusCurrentRegion);
     }
 
     function localPath(url) {
@@ -137,7 +154,9 @@ Item {
         var payload = parseOpenRequest(payloadJson);
         if (!diagnosticSessionOpen && service && typeof payload.controllerId === "string" && /^[1-9][0-9]{0,19}$/.test(payload.controllerId))
             service.selectController(payload.controllerId);
-        focusRegion = diagnosticSessionOpen ? 1 : 0;
+        if (!diagnosticSessionOpen)
+            diagnosticTray.setSelectedView("live");
+        focusRegion = diagnosticSessionOpen && diagnosticTray.hasVisibleActions ? 2 : (diagnosticSessionOpen ? 1 : 0);
         openRequested = true;
         closingFromHost = false;
         if (windowRuleReady)
@@ -212,51 +231,82 @@ Item {
     }
 
     function cycleController(delta) {
-        if (!diagnosticSessionOpen && service && service.connectedCount > 1)
+        if (!diagnosticActive && service && service.connectedCount > 1)
             service.cycleSelection(delta);
     }
 
     function selectController(controllerId) {
-        if (!diagnosticSessionOpen && service && typeof service.selectController === "function")
+        if (!diagnosticActive && service && typeof service.selectController === "function")
             service.selectController(controllerId);
     }
 
+    function diagnosticControllerIsPresent() {
+        if (!service || diagnosticState.controllerPresent === false || diagnosticState.controllerId === undefined)
+            return false;
+        var id = String(diagnosticState.controllerId || "");
+        var controllers = service.controllers || [];
+        for (var i = 0; i < controllers.length; i++) {
+            if (String(controllers[i].id) === id)
+                return true;
+        }
+        return false;
+    }
+
+    function availableFocusRegions() {
+        var regions = [];
+        if (tabCount > 0 && !diagnosticActive)
+            regions.push(0);
+        if (diagnosticTray.visible)
+            regions.push(1);
+        if (diagnosticTray.hasVisibleActions)
+            regions.push(2);
+        return regions;
+    }
+
     function focusCurrentRegion() {
-        if (focusRegion === 0 && tabCount > 0)
-            controllerTabsControl.focusTabs();
-        else if (diagnosticTray.visible)
-            diagnosticTray.focusCurrentAction();
-        else
-            keyCatcher.forceActiveFocus();
+        keyCatcher.forceActiveFocus();
     }
 
     function moveFocusRegion(direction) {
-        if (diagnosticSessionOpen) {
-            diagnosticTray.moveAction(direction);
-            diagnosticTray.focusCurrentAction();
+        var regions = availableFocusRegions();
+        if (regions.length === 0) {
+            keyCatcher.forceActiveFocus();
             return;
         }
-        if (tabCount > 0 && diagnosticTray.visible)
-            focusRegion = focusRegion === 0 ? 1 : 0;
-        else
-            focusRegion = diagnosticTray.visible ? 1 : 0;
+        var index = regions.indexOf(focusRegion);
+        if (index < 0)
+            index = direction < 0 ? 0 : -1;
+        focusRegion = regions[(index + (direction < 0 ? -1 : 1) + regions.length) % regions.length];
         focusCurrentRegion();
     }
 
     function handleNavigation(dx, dy) {
-        if (diagnosticSessionOpen) {
+        if (focusRegion === 2 && diagnosticTray.hasVisibleActions) {
             if (dx !== 0)
                 diagnosticTray.moveAction(dx);
-            else if (dy !== 0)
-                diagnosticTray.moveRetry(dy);
+            else if (dy !== 0 && !diagnosticTray.moveRetry(dy))
+                diagnosticTray.scrollGuidedContent(dy);
             return;
         }
-        if (dx !== 0 && tabCount > 1) {
+        if (focusRegion === 1 && dx !== 0) {
+            diagnosticTray.moveMode(dx);
+            return;
+        }
+        if (focusRegion === 1 && dy !== 0) {
+            if (diagnosticTray.scrollLiveButtons(dy) || diagnosticTray.scrollGuidedContent(dy))
+                return;
+        }
+        if (focusRegion === 0 && dx !== 0 && tabCount > 1) {
             cycleController(dx);
             return;
         }
         if (dy !== 0)
             scrollContent(dy, false);
+    }
+
+    function activateCurrentRegion() {
+        if (focusRegion === 2 && diagnosticTray.hasVisibleActions)
+            diagnosticTray.activateCurrentAction();
     }
 
     function scrollContent(direction, page) {
@@ -310,14 +360,16 @@ Item {
         return pressed.length > 0 ? pressed.join(", ") : "None";
     }
 
-    function refreshAxisNames() {
-        var names = controller && controller.capabilities && controller.capabilities.axes ? controller.capabilities.axes : [];
-        if (JSON.stringify(names) !== JSON.stringify(visibleAxisNames))
-            visibleAxisNames = names.slice();
-    }
-
     function axisValue(name) {
         return controller && controller.axes ? Number(controller.axes[name] || 0).toFixed(2) : "0.00";
+    }
+
+    function liveButtonIsPressed(name) {
+        return diagnosticTray.liveControlPressed(name);
+    }
+
+    function liveControlIndicator(name) {
+        return diagnosticTray.liveControlIndicator(name);
     }
 
     function connectionSummary() {
@@ -443,8 +495,8 @@ Item {
         visible: false
         title: "Gamepad Details"
         color: root.background
-        implicitWidth: 960
-        implicitHeight: 680
+        implicitWidth: 1120
+        implicitHeight: 760
         minimumSize: Qt.size(760, 540)
 
         onVisibleChanged: {
@@ -456,8 +508,13 @@ Item {
         }
 
         FocusScope {
+            id: detailsFocusScope
             anchors.fill: parent
             focus: true
+            onActiveFocusChanged: {
+                if (activeFocus && detailsWindow.visible)
+                    Qt.callLater(root.focusCurrentRegion);
+            }
             Keys.priority: Keys.BeforeItem
             Keys.onPressed: function (event) {
                 if (cancelDialog.opened && cancelDialog.handleKey(event)) {
@@ -496,8 +553,7 @@ Item {
                 onTabRequested: function (direction) {
                     root.moveFocusRegion(direction);
                 }
-                onActivateRequested: if (diagnosticTray.visible)
-                    diagnosticTray.activateCurrentAction()
+                onActivateRequested: root.activateCurrentRegion()
                 onCloseRequested: root.handleCloseRequest()
 
                 Column {
@@ -559,8 +615,10 @@ Item {
                             foreground: root.foreground
                             background: root.background
                             fontFamily: root.fontFamily
-                            opacity: root.diagnosticSessionOpen ? 0.55 : 1
+                            hasCursor: root.focusRegion === 0
+                            opacity: root.diagnosticActive ? 0.55 : 1
                             onSelected: function (controllerId) {
+                                root.focusRegion = 0;
                                 root.selectController(controllerId);
                             }
                         }
@@ -580,21 +638,25 @@ Item {
                             height: Math.max(0, parent.height - (diagnosticTray.visible ? diagnosticTray.height + Style.space(12) : 0))
                             spacing: Style.space(18)
 
-                            ScrollView {
-                                id: scroll
+                            Item {
+                                id: informationPane
                                 width: {
                                     var available = parent.width - parent.spacing;
                                     return Math.min(Math.max(280, Math.floor(available * 0.38)), available - 360);
                                 }
                                 height: parent.height
-                                clip: true
-                                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                                ScrollBar.vertical.policy: information.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
 
-                                Column {
-                                    id: information
-                                    width: scroll.availableWidth
-                                    spacing: Style.space(12)
+                                ScrollView {
+                                    id: scroll
+                                    anchors.fill: parent
+                                    clip: true
+                                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
+                                    ScrollBar.vertical.policy: ScrollBar.AlwaysOff
+
+                                    Column {
+                                        id: information
+                                        width: scroll.availableWidth
+                                        spacing: Style.space(12)
 
                                     Ui.PanelSectionHeader {
                                         text: "SELECTED CONTROLLER"
@@ -672,41 +734,6 @@ Item {
                                         value: root.controllerProfile ? root.controllerProfile.displayName : "Not available"
                                     }
 
-                                    Ui.PanelSeparator {
-                                        foreground: root.foreground
-                                    }
-
-                                    Ui.PanelSectionHeader {
-                                        text: "LIVE INPUT"
-                                        foreground: root.foreground
-                                        fontFamily: root.fontFamily
-                                    }
-
-                                    DetailRow {
-                                        width: parent.width
-                                        label: "Pressed buttons"
-                                        value: root.pressedButtonsLabel()
-                                    }
-
-                                    Grid {
-                                        id: liveAxisGrid
-                                        width: parent.width
-                                        columns: 2
-                                        columnSpacing: Style.space(8)
-                                        rowSpacing: Style.space(8)
-
-                                        Repeater {
-                                            model: root.visibleAxisNames
-
-                                            delegate: DetailRow {
-                                                required property string modelData
-                                                width: (liveAxisGrid.width - liveAxisGrid.columnSpacing) / 2
-                                                label: Profiles.labelFor(root.controllerProfile, modelData)
-                                                value: root.axisValue(modelData)
-                                            }
-                                        }
-                                    }
-
                                     Text {
                                         visible: root.service && (root.service.backendWarning || root.service.health === "error")
                                         width: parent.width
@@ -717,12 +744,19 @@ Item {
                                         font.pixelSize: Style.font.bodySmall
                                         wrapMode: Text.WordWrap
                                     }
+                                    }
+                                }
+
+                                Components.ScrollEdgeFades {
+                                    anchors.fill: parent
+                                    flickable: scroll.contentItem
+                                    background: root.background
                                 }
                             }
 
                             Item {
                                 id: visualPane
-                                width: parent.width - scroll.width - parent.spacing
+                                width: parent.width - informationPane.width - parent.spacing
                                 height: parent.height
 
                                 Ui.PanelSectionHeader {
@@ -841,6 +875,16 @@ Item {
                             background: root.background
                             fontFamily: root.fontFamily
                             enabled: !cancelDialog.opened
+                            testedControllerPresent: root.testedControllerPresent
+                            compactLayout: detailsWindow.height < 650
+                            modeHasCursor: root.focusRegion === 1
+                            actionsHaveCursor: root.focusRegion === 2
+                            onSelectedViewChanged: {
+                                if (selectedView === "live" && root.focusRegion === 2)
+                                    root.focusRegion = 1;
+                            }
+                            onModeFocusRequested: root.focusRegion = 1
+                            onActionFocusRequested: root.focusRegion = 2
                             onCancelRequested: root.showCancelConfirmation()
                             onExportRequested: root.exportDiagnosticReport()
                         }
@@ -863,7 +907,7 @@ Item {
                     if (opened)
                         forceActiveFocus();
                     else if (root.diagnosticSessionOpen)
-                        diagnosticTray.focusCurrentAction();
+                        root.focusCurrentRegion();
                 }
                 onCanceled: opened = false
                 onConfirmed: {

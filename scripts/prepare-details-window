@@ -8,8 +8,8 @@ hyprctl_call() {
 }
 
 fit_details_size() {
-  local requested_width=${1:-960}
-  local requested_height=${2:-680}
+  local requested_width=${1:-1120}
+  local requested_height=${2:-760}
   local maximum_hyprland_bytes=4194304
   local monitors_json dimensions fitted_width fitted_height
 
@@ -46,7 +46,7 @@ prepare_details_window() {
   local window_width window_height
   [[ $rule_token =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
   [[ $expected_pid =~ ^[1-9][0-9]*$ ]] || return 1
-  read -r window_width window_height < <(fit_details_size 960 680)
+  read -r window_width window_height < <(fit_details_size 1120 760)
 
   hyprctl_call eval "
     hl.window_rule({
