@@ -35,6 +35,9 @@ jobs:
       - name: Validate manifest
         run: ./omarchy/bin/omarchy-plugin-validate ./plugin
 
+      - name: Validate release metadata
+        run: bash ./plugin/scripts/check-release-metadata.sh
+
       - name: Lint QML
         env:
           OMARCHY_SHELL_PATH: ${{ github.workspace }}/omarchy/shell
@@ -50,3 +53,13 @@ jobs:
 
       - name: Test window placement
         run: bash plugin/tests/test_window_placement.sh
+
+      - name: Check shell syntax
+        run: |
+          bash -n plugin/scripts/check-release-metadata.sh
+          bash -n plugin/scripts/clear-details-window-rule
+          bash -n plugin/scripts/place-details-window
+          bash -n plugin/scripts/prepare-details-window
+          bash -n plugin/scripts/test-panel.sh
+          bash -n plugin/scripts/test-service.sh
+          bash -n plugin/tests/test_window_placement.sh

@@ -23,6 +23,7 @@ MAX_FIXTURE_BYTES = 65_536
 MAX_REPLAY_BYTES = 8 * 1024 * 1024
 MAX_REPLAY_MESSAGES = 10_000
 MAX_CONTROLLERS = 32
+MAX_DEFERRED_CONTROLLERS = 32
 COMMAND_QUEUE_SIZE = 64
 COMMANDS_PER_TICK = 16
 MAX_SDL_EVENTS_PER_POLL = 256
@@ -87,6 +88,7 @@ CONTROLLER_ID_PATTERN = re.compile(r"[1-9][0-9]{0,19}")
 CODE_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,63}")
 TYPE_NAME_PATTERN = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 HEX_ID_PATTERN = re.compile(r"[0-9a-f]{4}")
+UNSAFE_TEXT_PATTERN = re.compile(r"[\x00-\x1f\x7f-\x9f\u202a-\u202e\u2066-\u2069]")
 BATTERY_LEVELS = {"critical", "low", "normal", "high", "full", "unknown"}
 BATTERY_STATES = {"charging", "charged", "on_battery", "no_battery", "unknown"}
 
@@ -150,7 +152,7 @@ def safe_text(value: Any, *, limit: int = 512) -> str:
     if isinstance(value, bytes):
         value = value.decode("utf-8", "replace")
     text = str(value or "")
-    text = "".join(character for character in text if character >= " " or character == "\t")
+    text = UNSAFE_TEXT_PATTERN.sub("", text)
     text = MAC_PATTERN.sub("<redacted-address>", text)
     text = DEVICE_PATH_PATTERN.sub("<redacted-device>", text)
     text = HOME_PATTERN.sub("/home/<redacted>", text)
@@ -306,7 +308,7 @@ def validate_controller(controller: Any) -> None:
     validate_controller_id(controller.get("id"))
     if not isinstance(controller.get("name"), str) or not 1 <= len(controller["name"]) <= 128:
         raise ProtocolError("Controller name is required.")
-    if any(character < " " for character in controller["name"]):
+    if UNSAFE_TEXT_PATTERN.search(controller["name"]):
         raise ProtocolError("Controller name contains control characters.")
     if not isinstance(controller.get("family"), str) or not TYPE_NAME_PATTERN.fullmatch(controller["family"]):
         raise ProtocolError("Invalid controller family.")
@@ -568,7 +570,7 @@ class SDLBackend:
             for index in range(count.value):
                 instance_id = int(instance_ids[index])
                 if len(self.controllers) >= MAX_CONTROLLERS:
-                    self.deferred_ids.add(instance_id)
+                    self._defer(instance_id)
                     continue
                 self._open(instance_id)
             if self.deferred_ids:
@@ -584,7 +586,7 @@ class SDLBackend:
         if controller_id in self.controllers:
             return self.controllers[controller_id]
         if len(self.controllers) >= MAX_CONTROLLERS:
-            self.deferred_ids.add(instance_id)
+            self._defer(instance_id)
             self.pending_events.append(
                 ("error", ("controller_limit", "Additional gamepads were ignored by the safety limit."))
             )
@@ -605,6 +607,11 @@ class SDLBackend:
             raise
         self.controllers[controller_id] = controller
         return controller
+
+    def _defer(self, instance_id: int) -> None:
+        if instance_id in self.deferred_ids or len(self.deferred_ids) >= MAX_DEFERRED_CONTROLLERS:
+            return
+        self.deferred_ids.add(instance_id)
 
     def _patch_switch_capture(self, instance_id: int) -> None:
         if (

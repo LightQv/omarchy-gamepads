@@ -74,6 +74,6 @@ var profile = {
     movementDetection: 0.2
   },
   knownLimitations: [
-    "The interactive 3D view is introduced in a later phase."
+    "Interactive 3D visualization is planned for version 2."
   ]
 };

@@ -109,8 +109,8 @@ fi
 log=$(<"$mock_log")
 for expected in \
   'title = "^Gamepad Details$"' \
-  'name = "lightqv-gamepad-details-' \
-  '-first-attempt"' \
+  'name = "lightqv-gamepad-details"' \
+  'token = "first-attempt"' \
   'pid = "^' \
   'float = true' \
   'size = { 1120, 760 }' \
@@ -123,9 +123,9 @@ for expected in \
   'x = 860, y = 590' \
   'hl.dsp.window.center' \
   'hl.dsp.focus' \
-  'enabled = false' \
-  'name = "lightqv-gamepad-details-cancelled-attempt"' \
-  'name = "lightqv-gamepad-details-stale-instance"'; do
+  'state.rule:set_enabled(false)' \
+  'state.token == "cancelled-attempt"' \
+  'state.token == "stale-instance"'; do
   if [[ $log != *"$expected"* ]]; then
     printf 'Missing placement action: %s\n' "$expected" >&2
     exit 1

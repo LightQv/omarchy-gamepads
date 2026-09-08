@@ -284,7 +284,7 @@ ShellRoot {
                 root.expect(fakeService.selectedId === "12", "payload selection");
                 root.expect(panel.selectedProfileId === "switch-pro", "profile selection");
                 root.expect(panel.streamingControllerId === "12", "initial streaming");
-                root.expect(panel.visualProfileActive, "persistent profile visual");
+                root.expect(!panel.visualProfileActive, "v1 profile visual remains hidden");
                 root.expect(panel.informationFits, "default information fit");
                 root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
                 root.expect(panel.defaultWindowWidth === 1120 && panel.defaultWindowHeight === 760, "expanded default size");

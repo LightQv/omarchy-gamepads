@@ -22,6 +22,7 @@ from scripts.gamepad_backend import (
     normalize_axis,
     parse_command,
     replay,
+    safe_text,
     sanitize_public,
 )
 
@@ -268,6 +269,9 @@ class ProtocolTests(unittest.TestCase):
         value = sanitize_public({"device": {"serialNumber": "x", "name": "safe"}})
         self.assertEqual(value, {"device": {"name": "safe"}})
 
+    def test_sanitizer_removes_display_control_characters(self):
+        self.assertEqual(safe_text("Safe\x7f\x85\u202e\u2066 name"), "Safe name")
+
     def test_protocol_rejects_negative_trigger_and_unknown_fields(self):
         output = io.StringIO()
         emitter = ProtocolEmitter(output)
@@ -424,6 +428,25 @@ class SDLBackendTests(unittest.TestCase):
         self.assertEqual([event[0] for event in events[-2:]], ["removed", "controller"])
         self.assertIn("33", backend.controllers)
         self.assertEqual(len(backend.controllers), 32)
+        backend.close()
+
+    def test_deferred_controller_queue_is_bounded(self):
+        class ManyGamepadsSDL(FakeSDL):
+            def __init__(self):
+                super().__init__()
+                self.ids = (ctypes.c_int32 * 96)(*range(1, 97))
+
+            def SDL_GetGamepads(self, count):
+                count._obj.value = 96
+                return self.ids
+
+            def SDL_IsGamepad(self, _instance_id):
+                return True
+
+        backend = SDLBackend(sdl=ManyGamepadsSDL(), metadata_reader=lambda _path: (None, None))
+        self.assertEqual(len(backend.controllers), 32)
+        self.assertEqual(len(backend.deferred_ids), 32)
+        self.assertEqual(backend.deferred_ids, set(range(33, 65)))
         backend.close()
 
     def test_open_failure_does_not_consume_controller_capacity(self):

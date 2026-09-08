@@ -2,7 +2,7 @@
 
 The helper exchanges newline-delimited JSON over standard input and output. Each line is one UTF-8 JSON object. Standard output is reserved for protocol messages; diagnostics may use standard error.
 
-Protocol version 1 is frozen for the Phase 2 implementation. Producers emit only documented fields; consumers should ignore unknown optional fields for forward compatibility. New required fields or changed semantics require a new protocol version.
+Protocol version 1 is the stable v1 release contract. Producers emit only documented fields; consumers should ignore unknown optional fields for forward compatibility. New required fields or changed semantics require a new protocol version.
 
 ## Startup
 
@@ -98,6 +98,7 @@ Errors are unsequenced and do not invalidate prior state:
 Repeated identical errors are limited to one every five seconds. Stable codes currently include:
 
 - `dependency_missing`
+- `controller_limit`
 - `initialization_failed`
 - `invalid_command`
 - `mapping_failed`

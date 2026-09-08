@@ -718,6 +718,7 @@ Item {
 
                             Item {
                                 id: visualPane
+                                visible: false
                                 width: parent.width - informationPane.width - parent.spacing
                                 height: parent.height
 
@@ -730,7 +731,7 @@ Item {
 
                                 Loader {
                                     id: profileView
-                                    active: root.opened && !!root.controllerProfile
+                                    active: visualPane.visible && root.opened && !!root.controllerProfile
                                     visible: active
                                     anchors.top: visualHeader.bottom
                                     anchors.left: parent.left

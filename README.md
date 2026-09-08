@@ -1,77 +1,191 @@
 # Omarchy Gamepads
 
-Omarchy Gamepads is an Omarchy shell plugin for controller vitals, interactive visualization, and guided input diagnostics. Nintendo Switch Pro Controller support is the initial target.
+Controller vitals, live input, and guided diagnostics in the Omarchy shell.
 
-The repository currently contains the protocol version 1 backend, shared QML service, native compact bar panel, and a floating Details window with physical-controller tabs, a unified profile-aware workspace, and bottom `Live Input` and `Guided Diagnostic` views. The interactive 3D model remains under development.
+![Omarchy Gamepads live input](.github/assets/live-input.png)
 
-## Installation
+Omarchy Gamepads adds a native bar widget, compact controller overview, and
+keyboard-friendly Details window. Version 1 focuses on reliable Nintendo
+Switch Pro Controller diagnostics without root services, exclusive input grabs,
+or persistent hardware identifiers.
 
-Omarchy plugins run as unsandboxed code inside the long-running `omarchy-shell` process. Review the repository before installing it. The plugin manager clones and validates plugins but does not install their runtime dependencies.
+## Features
 
-Install from a trusted Git URL, then enable the plugin:
+- View up to 32 concurrently connected SDL-recognized controllers from one native Omarchy bar widget.
+- Inspect connection, battery, capabilities, buttons, triggers, and stick input.
+- Run guided Switch Pro checks over USB or Bluetooth.
+- Review passed, warning, not detected, incomplete, and unavailable results.
+- Retry individual controls without restarting the complete diagnostic.
+- Export explicit, privacy-filtered JSON and Markdown reports.
+- Navigate the complete Details workflow without a mouse.
+- Keep multiple controllers and hotplug changes isolated by connection session.
+
+| Compact overview | Guided diagnostic |
+| --- | --- |
+| ![Compact gamepad overview](.github/assets/compact-panel.png) | ![Guided controller diagnostic](.github/assets/guided-diagnostic.png) |
+
+## Install
+
+Plugins run as unsandboxed code inside the long-running `omarchy-shell`
+process. Review third-party plugin code before installing or updating it.
+
+Install the SDL3 Python bindings from the official Arch repository:
 
 ```bash
-omarchy plugin add <git-url>
-omarchy plugin enable lightqv.gamepads
+omarchy pkg add python-pysdl3
 ```
 
-The bar widget defaults to the right section and can be moved with `omarchy bar move lightqv.gamepads --section right`. Its button opens the compact vitals popup. The Details action, or `omarchy-shell shell summon lightqv.gamepads`, opens the independent panel. Both interfaces use one shared service and one helper process.
-
-## Runtime Dependencies
-
-Install dependencies from the official repositories:
+Add and enable the plugin:
 
 ```bash
-omarchy pkg add python-pysdl3 qt6-quick3d
+omarchy plugin add https://github.com/lightqv/omarchy-gamepads.git --enable
 ```
 
-Qt Quick 3D is not needed while running only the backend tests. Blender is an optional maintainer dependency and is never required at runtime.
-
-## Backend
-
-Run the live helper:
+The widget appears in the right bar section by default. Move it with:
 
 ```bash
-python scripts/gamepad-helper.py
+omarchy bar move lightqv.gamepads --section right
 ```
 
-The helper communicates using newline-delimited JSON on standard input and output. See [`docs/backend-protocol.md`](docs/backend-protocol.md).
+## Use
 
-## Controller Profiles
+Select the gamepad icon in the bar for compact controller status. Choose
+**Details** for live input and guided diagnostics, or summon Details directly:
 
-Detailed controller behavior is isolated in `profiles/`. The initial Switch Pro profile defines SDL matching, Nintendo-style labels, expected controls, semantic visual-part names, provisional diagnostic thresholds, and the visual component contract. SDL-recognized controllers without a detailed profile still receive a tab and generic vitals. See [`docs/controller-profile.md`](docs/controller-profile.md).
+```bash
+omarchy-shell shell summon lightqv.gamepads
+```
 
-## Guided Diagnostics
+### Keyboard
 
-A single bordered, stable-height surface begins with `Live Input` and `Guided Diagnostic` tabs, separated from the selected view by the same spacing used below the controller tabs. Live places both stick plots first and on the left, with button-style controls on the right. Switch controls follow their physical-profile order from B through ZR; unknown mapped controls follow the profile controls. ZL/ZR remain threshold-highlighted but show their live `0.00` to `1.00` values instead of checkbox markers. Other checkbox-style markers stay left of their labels across both modes. Each stick dot follows live input continuously while its plot box highlights only at the movement threshold. Tab/Shift+Tab cycles controllers while arrows or `h`/`j`/`k`/`l` move one spatial cursor through the input modes, visible retry selector, and guided actions; Enter or Space activates the focused action. PageUp/PageDown and Home/End scroll overflowing content. Every overflowing viewport uses Omarchy-style directional edge fades: each fade appears only while more content remains beyond that edge. This covers the compact panel, controller tabs, controller information, Live buttons, and the Guided checklist. The guided diagnostic captures a neutral baseline, verifies post-baseline press and release edges, automatically advances completed stages, visualizes live stick range progress, and presents immutable results before export. Results use `passed`, `warning`, `not_detected`, `incomplete`, and `unavailable`; they do not assert that hardware is broken. Export is always explicit and atomically publishes each private JSON/Markdown report pair in a unique directory under `~/.local/state/omarchy-gamepads/reports/`.
+| Key | Action |
+| --- | --- |
+| `Tab` / `Shift+Tab` | Cycle controllers |
+| Arrows or `h` / `j` / `k` / `l` | Move through modes, retry targets, and actions |
+| `Enter` / `Space` | Activate the selected action |
+| `PageUp` / `PageDown` | Scroll the visible overflowing section |
+| `Home` / `End` | Move to the start or end of the visible section |
+| `Escape` | Close Details or confirm ending an active diagnostic |
 
-## Validation
+Controller selection stays locked while a diagnostic is active so results
+remain attached to the controller that started the session.
+
+## Controller Support
+
+Up to 32 concurrently connected controllers recognized by SDL receive generic
+status and live-input views. The guided workflow currently has a detailed
+profile for the Nintendo Switch Pro Controller.
+
+The Switch Pro profile has been physically verified over USB and Bluetooth.
+Diagnostic thresholds are intentionally conservative and report observations,
+not hardware-failure conclusions.
+
+Interactive 3D visualization is planned for v2. It is not required by or
+included in v1.
+
+## Requirements
+
+- A current Omarchy installation with its Quickshell shell
+- `python-pysdl3` from the official Arch repository
+- An SDL-recognized gamepad
+
+Version 1.0.0 was tested with Omarchy 4.0.2, Quickshell 0.3.1, Hyprland 0.56.2,
+Python 3.14.7, PySDL3 0.9.11b1, and SDL 3.4.14. Omarchy is rolling software;
+revalidate the plugin after major shell, SDL, or Hyprland upgrades.
+
+## Reports And Privacy
+
+The helper runs as the logged-in user and never uses exclusive input grabs. It
+does not require root, broad input-group membership, or custom udev rules.
+
+Reports are created only after selecting **Export report**. They omit session
+IDs, serial numbers, Bluetooth addresses, device paths, usernames, home paths,
+and unrelated controllers. Report directories use mode `0700`; report files
+use mode `0600`.
+
+Reports are stored under:
+
+```text
+~/.local/state/omarchy-gamepads/reports/
+```
+
+Removing the plugin intentionally leaves exported reports in place. Delete
+that directory separately if the reports are no longer needed.
+
+See [`docs/backend-protocol.md`](docs/backend-protocol.md) for the bounded NDJSON
+protocol and [`docs/controller-profile.md`](docs/controller-profile.md) for the
+profile contract.
+
+## Troubleshooting
+
+### Backend dependency unavailable
+
+Install or reinstall `python-pysdl3`, then restart the shell:
+
+```bash
+omarchy pkg add python-pysdl3
+omarchy restart shell
+```
+
+### Controller not shown
+
+Confirm another application has not made the device unavailable, reconnect the
+controller, and check whether SDL recognizes it. Steam Input may present a
+different mapped controller while a game is running.
+
+### Details window does not appear correctly
+
+Close Details and open it again on the intended workspace. The plugin uses the
+focused monitor's usable logical area and requires the `hyprctl` and `jq` tools
+included with Omarchy.
+
+### Check shell diagnostics
+
+```bash
+quickshell log --tail 500 --no-color
+```
+
+Please redact unrelated usernames, paths, addresses, and device details before
+sharing logs or reports publicly.
+
+## Update Or Remove
+
+```bash
+omarchy plugin update lightqv.gamepads
+omarchy plugin remove lightqv.gamepads
+```
+
+## Development
+
+Run the local development checks from an Omarchy workstation with Qt QML
+tooling, Node.js, and Python available:
 
 ```bash
 omarchy plugin validate .
+scripts/check-release-metadata.sh
 scripts/lint-qml.sh
-scripts/test-service.sh
-scripts/test-panel.sh
 bash tests/test_window_placement.sh
-node --test tests/model.test.js tests/profile.test.js tests/diagnostics.test.js
-python -m compileall -q scripts tests
-python -m unittest discover -s tests -v
+node --test tests/*.test.js
+python -B -m unittest discover -s tests -v
 ```
 
-The service and panel smoke tests require Quickshell and an installed Omarchy shell at `/usr/share/omarchy/shell`. They cover selected-controller streaming, tab hotplug behavior, persistent profile visuals, diagnostic lifecycle and disconnect handling, unsupported profiles, unified live input, and host-close cleanup. Details-window placement uses the `hyprctl` and `jq` tools included with Omarchy to float, center, and move the existing window to the active workspace; its `1120x760` target is capped to the focused monitor's usable logical area, and its process-scoped pre-map rule is disabled immediately after placement.
+On an Omarchy workstation, also run the Quickshell lifecycle checks:
 
-## Security
+```bash
+scripts/test-service.sh
+scripts/test-panel.sh
+```
 
-- The helper runs as the logged-in user.
-- It does not use exclusive input grabs.
-- It does not require root, broad input-group membership, or blanket udev rules.
-- SDL decides which devices qualify as gamepads.
-- The helper does not query serial numbers or Bluetooth addresses, and its protocol has no fields for persistent identifiers or raw device paths.
-- Device-provided product names are bounded and redacted for recognizable private paths and addresses, but should not be treated as anonymous if a vendor embeds unique text.
-- Reports are projected through a strict allowlist and omit session IDs, serials, addresses, device paths, usernames, home paths, and unrelated controllers.
-- The report directory is created only after explicit export; directories use mode `0700` and atomically written files use mode `0600`.
-- PySDL3 network checks, documentation generation, and native-library downloads are disabled before import.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) and
+[`docs/release-checklist.md`](docs/release-checklist.md) before submitting a
+change or preparing a release.
+
+## Roadmap
+
+Version 2 will explore Qt Quick 3D controller rendering, semantic moving parts,
+camera interaction, and live input animation. The v1 diagnostic and profile
+contracts remain independent of those assets.
 
 ## License
 
-MIT
+[MIT](LICENSE)
