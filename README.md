@@ -2,7 +2,7 @@
 
 Controller vitals, live input, and guided diagnostics in the Omarchy shell.
 
-![Omarchy Gamepads live input](.github/assets/live-input.png)
+![Omarchy Gamepads Details window](.github/assets/details-window.png)
 
 Omarchy Gamepads adds a native bar widget, compact controller overview, and
 keyboard-friendly Details window. Version 1 focuses on reliable Nintendo
@@ -20,9 +20,9 @@ or persistent hardware identifiers.
 - Navigate the complete Details workflow without a mouse.
 - Keep multiple controllers and hotplug changes isolated by connection session.
 
-| Compact overview | Guided diagnostic |
-| --- | --- |
-| ![Compact gamepad overview](.github/assets/compact-panel.png) | ![Guided controller diagnostic](.github/assets/guided-diagnostic.png) |
+| Compact overview | Live input | Guided diagnostic |
+| --- | --- | --- |
+| ![Compact gamepad overview](.github/assets/compact-panel.png) | ![Live controller input](.github/assets/live-input.png) | ![Guided controller diagnostic](.github/assets/guided-diagnostic.png) |
 
 ## Install
 
