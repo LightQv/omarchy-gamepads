@@ -1,6 +1,6 @@
 # Omarchy Gamepads
 
-Controller vitals, live input, and guided diagnostics in the Omarchy shell.
+Controller vitals, interactive visualization, live input, and guided diagnostics in the Omarchy shell.
 
 ![Omarchy Gamepads Details window](.github/assets/details-window.png)
 
@@ -13,6 +13,7 @@ or persistent hardware identifiers.
 
 - View up to 32 concurrently connected SDL-recognized controllers from one native Omarchy bar widget.
 - Inspect connection, battery, capabilities, buttons, triggers, and stick input.
+- Explore a responsive Switch Pro controller prototype rendered with Qt Quick 3D.
 - Run guided Switch Pro checks over USB or Bluetooth.
 - Review passed, warning, not detected, incomplete, and unavailable results.
 - Retry individual controls without restarting the complete diagnostic.
@@ -29,10 +30,10 @@ or persistent hardware identifiers.
 Plugins run as unsandboxed code inside the long-running `omarchy-shell`
 process. Review third-party plugin code before installing or updating it.
 
-Install the SDL3 Python bindings from the official Arch repository:
+Install the SDL3 Python bindings and Qt Quick 3D from the official Arch repository:
 
 ```bash
-omarchy pkg add python-pysdl3
+omarchy pkg add python-pysdl3 qt6-quick3d
 ```
 
 Add and enable the plugin:
@@ -70,6 +71,14 @@ omarchy-shell shell summon lightqv.gamepads
 Controller selection stays locked while a diagnostic is active so results
 remain attached to the controller that started the session.
 
+### 3D Camera
+
+Outside an active diagnostic, drag the controller or move the controller sticks
+to change its presentation. The keyboard camera controls are `W`/`A`/`S`/`D`
+for pitch and yaw, `Q`/`E` for roll, `+`/`-` for distance, and `R` to reset.
+During diagnostics the camera remains fixed and controller input animates its
+mapped control instead.
+
 ## Controller Support
 
 Up to 32 concurrently connected controllers recognized by SDL receive generic
@@ -80,18 +89,24 @@ The Switch Pro profile has been physically verified over USB and Bluetooth.
 Diagnostic thresholds are intentionally conservative and report observations,
 not hardware-failure conclusions.
 
-Interactive 3D visualization is planned for v2. It is not required by or
-included in v1.
+The unreleased version 2 work includes a Qt Quick 3D prototype with semantic
+moving parts. Its controlled primitive geometry will be replaced by the
+production model without changing the input or profile contracts.
 
 ## Requirements
 
 - A current Omarchy installation with its Quickshell shell
 - `python-pysdl3` from the official Arch repository
+- `qt6-quick3d` from the official Arch repository for 3D visualization
 - An SDL-recognized gamepad
 
 Version 1.0.0 was tested with Omarchy 4.0.2, Quickshell 0.3.1, Hyprland 0.56.2,
 Python 3.14.7, PySDL3 0.9.11b1, and SDL 3.4.14. Omarchy is rolling software;
 revalidate the plugin after major shell, SDL, or Hyprland upgrades.
+
+Phase 6 development additionally uses Qt and Qt Quick 3D 6.11.2. If Quick 3D
+is unavailable, Details keeps its vitals, live input, and diagnostics and shows
+an actionable visualization setup message.
 
 ## Reports And Privacy
 
@@ -132,6 +147,15 @@ omarchy restart shell
 Confirm another application has not made the device unavailable, reconnect the
 controller, and check whether SDL recognizes it. Steam Input may present a
 different mapped controller while a game is running.
+
+### 3D visualization unavailable
+
+Install Qt Quick 3D and restart the shell:
+
+```bash
+omarchy pkg add qt6-quick3d
+omarchy restart shell
+```
 
 ### Details window does not appear correctly
 
@@ -182,9 +206,10 @@ change or preparing a release.
 
 ## Roadmap
 
-Version 2 will explore Qt Quick 3D controller rendering, semantic moving parts,
-camera interaction, and live input animation. The v1 diagnostic and profile
-contracts remain independent of those assets.
+Version 2 is adding Qt Quick 3D rendering, semantic moving parts, camera
+interaction, and live input animation. The next production-model phase will
+replace the primitive prototype while preserving the v1 diagnostic and profile
+contracts.
 
 ## License
 

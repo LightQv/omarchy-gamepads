@@ -39,6 +39,13 @@ if /usr/bin/grep -Fq '<git-url>' "$readme"; then
   exit 1
 fi
 
+for dependency in python-pysdl3 qt6-quick3d; do
+  /usr/bin/grep -Fq "$dependency" "$readme" || {
+    printf 'README.md does not document runtime dependency: %s\n' "$dependency" >&2
+    exit 1
+  }
+done
+
 for screenshot in details-window.png live-input.png compact-panel.png guided-diagnostic.png; do
   [[ -s "$repo_root/.github/assets/$screenshot" ]] || {
     printf 'Missing release screenshot: %s\n' "$screenshot" >&2

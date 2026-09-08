@@ -4,6 +4,11 @@ All notable changes to this project will be documented here.
 
 ## [Unreleased]
 
+- Add a dependency-safe Qt Quick 3D Switch Pro prototype with semantic moving parts.
+- Add distinct overview, diagnostic, and review visualization modes.
+- Add controller, pointer, and dedicated keyboard camera interaction with reset.
+- Add strict visual-profile, animation, scene-loading, and missing-module checks.
+
 ## [1.0.0] - 2026-09-08
 
 - Add the Omarchy plugin foundation.

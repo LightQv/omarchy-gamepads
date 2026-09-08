@@ -33,6 +33,11 @@ test("resolves the Switch Pro profile and semantic labels", () => {
     "left_stick", "right_stick", "dpad_up", "dpad_down", "dpad_left",
     "dpad_right", "left_shoulder", "right_shoulder"
   ]);
+  assert.deepEqual(Array.from(profile.expectedAxes), [
+    "leftx", "lefty", "rightx", "righty", "left_trigger", "right_trigger"
+  ]);
+  assert.equal(profile.modelParts.includes("left_stick"), true);
+  assert.equal(profile.modelParts.includes("button_right_stick"), true);
 });
 
 test("provides valid profile-owned diagnostic thresholds", () => {
@@ -80,7 +85,38 @@ test("rejects malformed profile contracts", () => {
     matchers: [{ sdlTypes: ["switchpro"], productId: "2009" }]
   });
   assert.equal(Registry.validateProfile(productOnly), false);
+  const undeclaredPart = Object.assign({}, SwitchPro.profile, {
+    semanticParts: Object.assign({}, SwitchPro.profile.semanticParts, { south: "button_missing" })
+  });
+  assert.equal(Registry.validateProfile(undeclaredPart), false);
+  const staleMapping = Object.assign({}, SwitchPro.profile, {
+    semanticParts: Object.assign({}, SwitchPro.profile.semanticParts, { turbo: "button_a" })
+  });
+  assert.equal(Registry.validateProfile(staleMapping), false);
+  const overlappingControl = Object.assign({}, SwitchPro.profile, {
+    expectedAxes: SwitchPro.profile.expectedAxes.concat(["south"])
+  });
+  assert.equal(Registry.validateProfile(overlappingControl), false);
   assert.equal(Registry.validateProfile(SwitchPro.profile), true);
+});
+
+test("rejects malformed animation and model-part contracts", () => {
+  function withAnimation(changes) {
+    return Object.assign({}, SwitchPro.profile, {
+      animation: Object.assign({}, SwitchPro.profile.animation, changes)
+    });
+  }
+
+  assert.equal(Registry.validateProfile(withAnimation({ digitalTravel: 0 })), false);
+  assert.equal(Registry.validateProfile(withAnimation({ stickTiltDegrees: 46 })), false);
+  assert.equal(Registry.validateProfile(withAnimation({ transitionDurationMs: 50.5 })), false);
+  assert.equal(Registry.validateProfile(withAnimation({ unexpected: 1 })), false);
+  const missing = withAnimation({});
+  delete missing.animation.digitalTravel;
+  assert.equal(Registry.validateProfile(missing), false);
+  assert.equal(Registry.validateProfile(Object.assign({}, SwitchPro.profile, {
+    modelParts: SwitchPro.profile.modelParts.concat(["button_a"])
+  })), false);
 });
 
 test("rejects malformed or unsafe diagnostic thresholds", () => {

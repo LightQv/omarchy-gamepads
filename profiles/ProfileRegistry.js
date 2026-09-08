@@ -13,6 +13,7 @@ var THRESHOLD_KEYS = [
   "centerOffsetWarning", "neutralJitterWarning", "minimumPositiveRange",
   "minimumNegativeRange", "movementDetection"
 ];
+var ANIMATION_KEYS = ["digitalTravel", "stickTiltDegrees", "transitionDurationMs"];
 var registeredProfiles = [SwitchPro.profile];
 
 function validStringList(values, pattern) {
@@ -67,6 +68,21 @@ function validateThresholds(thresholds) {
   return true;
 }
 
+function validateAnimation(animation) {
+  if (!animation || typeof animation !== "object" || Array.isArray(animation)) return false;
+  var keys = Object.keys(animation);
+  if (keys.length !== ANIMATION_KEYS.length) return false;
+  for (var i = 0; i < ANIMATION_KEYS.length; i++) {
+    var key = ANIMATION_KEYS[i];
+    if (!Object.prototype.hasOwnProperty.call(animation, key)
+        || typeof animation[key] !== "number" || !isFinite(animation[key])) return false;
+  }
+  return animation.digitalTravel > 0 && animation.digitalTravel <= 0.25
+    && animation.stickTiltDegrees > 0 && animation.stickTiltDegrees <= 45
+    && animation.transitionDurationMs >= 0 && animation.transitionDurationMs <= 500
+    && Math.floor(animation.transitionDurationMs) === animation.transitionDurationMs;
+}
+
 function validateProfile(profile) {
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) return false;
   if (typeof profile.id !== "string" || !PROFILE_ID_PATTERN.test(profile.id)) return false;
@@ -77,12 +93,13 @@ function validateProfile(profile) {
   }
   if (!validStringList(profile.expectedButtons, CONTROL_PATTERN)) return false;
   if (!validStringList(profile.expectedAxes, CONTROL_PATTERN)) return false;
+  if (!validStringList(profile.modelParts, PART_PATTERN)) return false;
   if (["digital", "analog"].indexOf(profile.triggerType) === -1) return false;
   if (typeof profile.viewComponent !== "string" || !VIEW_PATTERN.test(profile.viewComponent)
       || profile.viewComponent.indexOf("..") !== -1) return false;
   if (!profile.labels || typeof profile.labels !== "object" || Array.isArray(profile.labels)) return false;
   if (!profile.semanticParts || typeof profile.semanticParts !== "object" || Array.isArray(profile.semanticParts)) return false;
-  if (!profile.animation || typeof profile.animation !== "object" || Array.isArray(profile.animation)) return false;
+  if (!validateAnimation(profile.animation)) return false;
   if (!validateThresholds(profile.thresholds)) return false;
   var labelKeys = Object.keys(profile.labels);
   for (var labelIndex = 0; labelIndex < labelKeys.length; labelIndex++) {
@@ -91,9 +108,26 @@ function validateProfile(profile) {
         || label.length > 64 || UNSAFE_TEXT_PATTERN.test(label)) return false;
   }
   var controls = profile.expectedButtons.concat(profile.expectedAxes);
+  var controlSet = Object.create(null);
+  for (var expectedIndex = 0; expectedIndex < controls.length; expectedIndex++) {
+    if (controlSet[controls[expectedIndex]]) return false;
+    controlSet[controls[expectedIndex]] = true;
+  }
+  var semanticKeys = Object.keys(profile.semanticParts);
+  if (semanticKeys.length !== controls.length) return false;
+  for (var semanticIndex = 0; semanticIndex < semanticKeys.length; semanticIndex++) {
+    if (!controlSet[semanticKeys[semanticIndex]]) return false;
+  }
   for (var controlIndex = 0; controlIndex < controls.length; controlIndex++) {
+    if (!Object.prototype.hasOwnProperty.call(profile.semanticParts, controls[controlIndex])) return false;
     var part = profile.semanticParts[controls[controlIndex]];
-    if (typeof part !== "string" || !PART_PATTERN.test(part)) return false;
+    if (typeof part !== "string" || !PART_PATTERN.test(part) || profile.modelParts.indexOf(part) === -1) return false;
+  }
+  if (!Array.isArray(profile.knownLimitations) || profile.knownLimitations.length > 16) return false;
+  for (var limitationIndex = 0; limitationIndex < profile.knownLimitations.length; limitationIndex++) {
+    var limitation = profile.knownLimitations[limitationIndex];
+    if (typeof limitation !== "string" || limitation.length === 0 || limitation.length > 256
+        || UNSAFE_TEXT_PATTERN.test(limitation)) return false;
   }
   return true;
 }

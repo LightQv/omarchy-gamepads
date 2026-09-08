@@ -266,6 +266,8 @@ ShellRoot {
             if (!panel.opened)
                 return;
             if (root.phase === 0) {
+                if (!panel.visualProfileLoaded || (!panel.visualProfileActive && !panel.visualProfileUnavailable))
+                    return;
                 root.expect(verticalFades.startOpacity === 0 && verticalFades.endOpacity > 0, "vertical fade at start");
                 verticalFadeViewport.contentY = 50;
                 root.expect(verticalFades.startOpacity > 0 && verticalFades.endOpacity > 0, "vertical fades in middle");
@@ -284,7 +286,14 @@ ShellRoot {
                 root.expect(fakeService.selectedId === "12", "payload selection");
                 root.expect(panel.selectedProfileId === "switch-pro", "profile selection");
                 root.expect(panel.streamingControllerId === "12", "initial streaming");
-                root.expect(!panel.visualProfileActive, "v1 profile visual remains hidden");
+                root.expect(panel.visualProfileActive, "profile visual loads");
+                root.expect(panel.visualSemanticBindingsValid, "profile semantic bindings");
+                root.expect(panel.visualInteractionMode === "overview", "visual opens in overview mode");
+                var initialYaw = panel.visualCameraYaw;
+                root.expect(panel.handleVisualKey("d"), "overview camera key accepted");
+                root.expect(panel.visualCameraYaw > initialYaw, "overview camera key changes yaw");
+                root.expect(panel.handleVisualKey("r"), "camera reset accepted");
+                root.expect(panel.visualCameraYaw === 0, "camera reset restores yaw");
                 root.expect(panel.informationFits, "default information fit");
                 root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
                 root.expect(panel.defaultWindowWidth === 1120 && panel.defaultWindowHeight === 760, "expanded default size");
@@ -322,6 +331,8 @@ ShellRoot {
                 panel.handleNavigation(0, 1);
                 panel.activateCurrentRegion();
                 root.expect(panel.diagnosticPhase === "baseline_waiting", "diagnostic waiting phase");
+                root.expect(panel.visualInteractionMode === "diagnostic", "diagnostic fixes visual mode");
+                root.expect(!panel.handleVisualKey("d"), "diagnostic rejects camera movement");
                 root.expect(panel.selectedBottomView === "guided", "diagnostic selects guided view");
                 root.phase = 13;
                 return;
@@ -348,6 +359,7 @@ ShellRoot {
                 root.expect(panel.opened && panel.cancelConfirmationOpen, "diagnostic close confirmation");
                 panel.confirmDiagnosticCancel();
                 root.expect(panel.diagnosticPhase === "review" && fakeService.diagnosticState.status === "incomplete", "diagnostic cancel review");
+                root.expect(panel.visualInteractionMode === "review", "review visual mode");
                 panel.handleNavigation(0, 1);
                 root.expect(panel.actionCursorRow === "retry", "review exposes retry target row");
                 var retryControl = panel.retryCursorControl;
@@ -365,6 +377,7 @@ ShellRoot {
                 root.expect(panel.diagnosticPhase === "review", "retry cancellation returns to review");
                 panel.selectController("11");
                 root.expect(fakeService.selectedId === "11", "review selection unlocked");
+                root.expect(panel.visualInteractionMode === "overview", "review overlay scoped to tested controller");
                 fakeService.selectController("12");
                 fakeService.resetDiagnostics();
                 root.expect(panel.selectedBottomView === "live", "reset selects live input");

@@ -203,7 +203,8 @@ Item {
     function liveControlPressed(name) {
         if (liveButtonNames.indexOf(name) !== -1)
             return liveButtonPressed(name);
-        var threshold = profile && profile.thresholds ? Number(profile.thresholds.digitalTriggerPress || 0.75) : 0.75;
+        var configured = profile && profile.thresholds ? Number(profile.thresholds.digitalTriggerPress) : NaN;
+        var threshold = isFinite(configured) ? configured : 0.75;
         return liveAxisValue(name) >= threshold;
     }
 
@@ -215,7 +216,8 @@ Item {
 
     function stickActive(xValue, yValue) {
         var thresholds = phase !== "idle" && diagnostic.thresholds ? diagnostic.thresholds : (profile && profile.thresholds ? profile.thresholds : null);
-        var threshold = thresholds ? Number(thresholds.movementDetection || 0.2) : 0.2;
+        var configured = thresholds ? Number(thresholds.movementDetection) : NaN;
+        var threshold = isFinite(configured) ? configured : 0.2;
         return Math.abs(xValue) >= threshold || Math.abs(yValue) >= threshold;
     }
 

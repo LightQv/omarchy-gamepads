@@ -7,6 +7,7 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui as Ui
 import "Model.js" as Model
+import "VisualState.js" as Visual
 import "profiles/ProfileRegistry.js" as Profiles
 import "components" as Components
 
@@ -39,7 +40,12 @@ Item {
     readonly property string selectedProfileId: controllerProfile ? controllerProfile.id : ""
     readonly property string streamingControllerId: registeredStreamingId
     readonly property real scrollPosition: scroll.contentItem ? scroll.contentItem.contentY : 0
-    readonly property bool visualProfileActive: profileView.active && profileView.status === Loader.Ready && !!profileView.item
+    readonly property bool visualProfileLoaded: profileView.active && profileView.status === Loader.Ready && !!profileView.item
+    readonly property bool visualProfileActive: visualProfileLoaded && profileView.item.sceneReady === true
+    readonly property bool visualProfileUnavailable: visualProfileLoaded && profileView.item.sceneUnavailable === true
+    readonly property bool visualSemanticBindingsValid: visualProfileActive && profileView.item.semanticBindingsValid === true
+    readonly property string visualInteractionMode: Visual.interactionMode(controller, controllerProfile, diagnosticState)
+    readonly property real visualCameraYaw: visualProfileActive ? profileView.item.cameraYaw : 0
     readonly property bool informationFits: !controller || information.implicitHeight <= scroll.height
     readonly property real visualPaneWidth: visualPane.width
     readonly property var diagnosticState: service && service.diagnosticState ? service.diagnosticState : ({ phase: "idle" })
@@ -93,7 +99,10 @@ Item {
     onControllerChanged: {
         syncStreamingRequest();
     }
-    onSelectedControllerIdChanged: resetScroll()
+    onSelectedControllerIdChanged: {
+        resetScroll();
+        Qt.callLater(resetVisualView);
+    }
     onDiagnosticPhaseChanged: {
         syncStreamingRequest();
         if (diagnosticPhase !== "review")
@@ -288,6 +297,16 @@ Item {
             if (scroll.contentItem)
                 scroll.contentItem.contentY = 0;
         });
+    }
+
+    function resetVisualView() {
+        if (visualProfileLoaded && typeof profileView.item.resetView === "function")
+            profileView.item.resetView();
+    }
+
+    function handleVisualKey(text) {
+        return visualProfileLoaded && typeof profileView.item.handleCameraKey === "function"
+            ? profileView.item.handleCameraKey(text) : false;
     }
 
     function clearStreamingRequest() {
@@ -502,6 +521,8 @@ Item {
                     event.accepted = true;
                 } else if (event.key === Qt.Key_End) {
                     root.scrollVisibleContentToEdge(true);
+                    event.accepted = true;
+                } else if (root.handleVisualKey(event.text)) {
                     event.accepted = true;
                 }
             }
@@ -718,7 +739,7 @@ Item {
 
                             Item {
                                 id: visualPane
-                                visible: false
+                                visible: true
                                 width: parent.width - informationPane.width - parent.spacing
                                 height: parent.height
 
@@ -732,6 +753,7 @@ Item {
                                 Loader {
                                     id: profileView
                                     active: visualPane.visible && root.opened && !!root.controllerProfile
+                                    asynchronous: true
                                     visible: active
                                     anchors.top: visualHeader.bottom
                                     anchors.left: parent.left
@@ -742,15 +764,30 @@ Item {
                                     onLoaded: {
                                         if (!item)
                                             return;
-                                        item.controller = Qt.binding(function () {
-                                            return root.controller;
-                                        });
-                                        item.foreground = Qt.binding(function () {
-                                            return root.foreground;
-                                        });
-                                        item.fontFamily = Qt.binding(function () {
-                                            return root.fontFamily;
-                                        });
+                                        if ("controller" in item)
+                                            item.controller = Qt.binding(function () { return root.controller; });
+                                        if ("profile" in item)
+                                            item.profile = Qt.binding(function () { return root.controllerProfile; });
+                                        if ("diagnosticState" in item)
+                                            item.diagnosticState = Qt.binding(function () { return root.diagnosticState; });
+                                        if ("interactionMode" in item)
+                                            item.interactionMode = Qt.binding(function () { return root.visualInteractionMode; });
+                                        if ("renderActive" in item)
+                                            item.renderActive = Qt.binding(function () { return root.opened && visualPane.visible; });
+                                        if ("foreground" in item)
+                                            item.foreground = Qt.binding(function () { return root.foreground; });
+                                        if ("background" in item)
+                                            item.background = Qt.binding(function () { return root.background; });
+                                        if ("accent" in item)
+                                            item.accent = Qt.binding(function () { return Color.accent; });
+                                        if ("urgent" in item)
+                                            item.urgent = Qt.binding(function () { return Color.urgent; });
+                                        if ("fontFamily" in item)
+                                            item.fontFamily = Qt.binding(function () { return root.fontFamily; });
+                                    }
+                                    onStatusChanged: {
+                                        if (status === Loader.Error)
+                                            console.warn("Controller visual profile unavailable: load_failed");
                                     }
                                 }
 
