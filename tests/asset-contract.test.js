@@ -62,13 +62,32 @@ test("asset hierarchy preserves composable stick pivots", () => {
 
 test("asset limits and motion conventions are complete", () => {
   assertExactKeys(contract, [
-    "schemaVersion", "units", "coordinateSystem", "root", "bounds", "budgets",
-    "motion", "parts", "conversion", "manifestSchema", "runtime"
+    "schemaVersion", "units", "referenceDimensions", "coordinateSystem", "root",
+    "bounds", "sceneEnvelope", "budgets", "motion", "parts", "conversion",
+    "manifestSchema", "runtime"
   ]);
-  assert.equal(contract.schemaVersion, 1);
+  assert.equal(contract.schemaVersion, 2);
   assert.equal(contract.units.name, "logical_scene_unit");
   assert.ok(Number.isFinite(contract.units.millimetersPerUnit));
   assert.ok(contract.units.millimetersPerUnit > 0);
+  assertExactKeys(contract.referenceDimensions, [
+    "model", "publisher", "title", "canonicalUrl", "accessed", "measurementKind",
+    "millimeters"
+  ]);
+  assert.equal(contract.referenceDimensions.model, "HAC-013");
+  assert.equal(contract.referenceDimensions.publisher, "Nintendo");
+  assert.equal(contract.referenceDimensions.title, "Nintendo Switch Pro Controller");
+  assert.equal(
+    contract.referenceDimensions.canonicalUrl,
+    "https://www.nintendo.com/sg/hardware/switch/accessories/procon.html"
+  );
+  assert.match(contract.referenceDimensions.accessed, /^\d{4}-\d{2}-\d{2}$/);
+  assert.equal(contract.referenceDimensions.measurementKind, "maximum_overall_dimensions");
+  assert.deepEqual(contract.referenceDimensions.millimeters, {
+    width: 152,
+    height: 106,
+    depth: 60
+  });
   assertExactKeys(contract.coordinateSystem, ["blender", "qtQuick3D", "blenderToQt"]);
   assert.deepEqual(contract.coordinateSystem.blenderToQt, ["x", "z", "-y"]);
   assertExactKeys(contract.root, ["name", "neutralTransform"]);
@@ -81,14 +100,34 @@ test("asset limits and motion conventions are complete", () => {
     pivot: [0, 0, 0]
   });
 
-  assertExactKeys(contract.bounds, ["space", "width", "height", "depth", "centerTolerance"]);
+  assertExactKeys(contract.bounds, [
+    "space", "aggregateTarget", "aggregateTolerance", "projectToleranceMillimeters",
+    "tolerancePolicy", "centerTolerance"
+  ]);
   assert.equal(contract.bounds.space, "qt_neutral_logical_scene_units");
+  assert.equal(contract.bounds.projectToleranceMillimeters, 1.5);
+  assert.equal(
+    contract.bounds.tolerancePolicy,
+    "authoring_allowance_for_reference_and_export_rounding"
+  );
+  assertExactKeys(contract.bounds.aggregateTarget, ["width", "height", "depth"]);
+  assertExactKeys(contract.bounds.aggregateTolerance, ["width", "height", "depth"]);
+  assertExactKeys(contract.sceneEnvelope, ["space", "width", "height", "depth"]);
+  assert.equal(contract.sceneEnvelope.space, contract.bounds.space);
   for (const dimension of ["width", "height", "depth"]) {
-    const range = contract.bounds[dimension];
-    assertExactKeys(range, ["minimum", "maximum"]);
-    assert.ok(Number.isFinite(range.minimum));
-    assert.ok(Number.isFinite(range.maximum));
-    assert.ok(range.minimum > 0 && range.minimum < range.maximum);
+    const envelope = contract.sceneEnvelope[dimension];
+    const expectedTarget = contract.referenceDimensions.millimeters[dimension]
+      / contract.units.millimetersPerUnit;
+    const expectedTolerance = contract.bounds.projectToleranceMillimeters
+      / contract.units.millimetersPerUnit;
+    const target = contract.bounds.aggregateTarget[dimension];
+    const tolerance = contract.bounds.aggregateTolerance[dimension];
+    assertExactKeys(envelope, ["minimum", "maximum"]);
+    assert.ok(envelope.minimum > 0 && envelope.minimum < envelope.maximum);
+    assert.ok(Math.abs(target - expectedTarget) < 0.000001);
+    assert.ok(Math.abs(tolerance - expectedTolerance) < 0.000001);
+    assert.ok(target - tolerance >= envelope.minimum);
+    assert.ok(target + tolerance <= envelope.maximum);
   }
   assert.ok(contract.bounds.centerTolerance >= 0);
 

@@ -66,7 +66,8 @@ transforms against the contract before the prototype is replaced.
   deterministic manifest.
 - `models/switch-pro/review/` contains selected fixed-camera review renders.
 - `models/switch-pro/asset-contract.json` freezes hierarchy, bounds, and budgets.
-- `models/switch-pro/REFERENCES.md` records measurements and visual references.
+- `models/switch-pro/REFERENCES.md` records published dimensions, source roles,
+  and visual-reference constraints.
 - `models/switch-pro/LICENSE.md` records asset redistribution terms.
 
 Temporary GLB, Balsam-generated QML, Blender backups, work files, and turntable
