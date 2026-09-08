@@ -5,12 +5,14 @@ set -euo pipefail
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
 omarchy_shell=${OMARCHY_SHELL_PATH:-/usr/share/omarchy/shell}
 
-if [[ -x /usr/lib/qt6/bin/qmllint ]]; then
+if command -v pyside6-qmllint >/dev/null 2>&1; then
+  qmllint=$(command -v pyside6-qmllint)
+elif [[ -x /usr/lib/qt6/bin/qmllint ]]; then
   qmllint=/usr/lib/qt6/bin/qmllint
 elif command -v qmllint >/dev/null 2>&1; then
   qmllint=$(command -v qmllint)
 else
-  printf '%s\n' "Qt 6 qmllint is required (Arch: qt6-declarative; Ubuntu: qt6-declarative-dev-tools)." >&2
+  printf '%s\n' "Qt 6 qmllint is required (Arch: qt6-declarative; other systems: PySide6-Essentials)." >&2
   exit 1
 fi
 
@@ -32,22 +34,16 @@ fi
 
 # Running outside the plugin directory prevents entry-point filenames from
 # shadowing shared qs.Ui component names. Dynamic Quickshell host properties
-# and unavailable CI-only Quickshell modules are excluded; all other warnings
-# fail the check.
+# and unqualified access through unavailable CI-only Quickshell host metadata
+# are excluded; all other warnings fail the check.
 cd -- "$(dirname -- "$repo_root")"
-qmllint_help=$("$qmllint" --help)
-lint_args=(--ignore-settings --import disable -I "$import_root")
-
-if [[ $qmllint_help == *"--max-warnings"* ]]; then
-  lint_args+=(-W 0)
-fi
-
-if [[ $qmllint_help == *"--missing-property"* ]]; then
-  lint_args+=(--missing-property disable --missing-type disable --unresolved-type disable)
-else
-  # Qt 6.4 cannot model Quickshell host types and cascades those missing types
-  # into signal and unqualified-access warnings.
-  lint_args+=(--property disable --type disable --signal disable --unqualified disable)
-fi
-
-"$qmllint" "${lint_args[@]}" "${qml_files[@]}"
+"$qmllint" \
+  --ignore-settings \
+  -W 0 \
+  --import disable \
+  --missing-property disable \
+  --missing-type disable \
+  --unresolved-type disable \
+  --unqualified disable \
+  -I "$import_root" \
+  "${qml_files[@]}"
