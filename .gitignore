@@ -7,3 +7,4 @@ __pycache__/
 /models/switch-pro/runtime/.staging/
 /models/switch-pro/review/turntable/
 /models/switch-pro/work/
+/models/switch-pro/references-local/

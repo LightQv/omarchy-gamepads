@@ -28,7 +28,22 @@ jobs:
           persist-credentials: false
 
       - name: Install Qt 6 QML tooling
-        run: python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: PySide6-Addons==6.11.2
+        run: >-
+          python -m pip install --disable-pip-version-check --no-cache-dir
+          --only-binary=:all: PySide6-Addons==6.11.2
+
+      - name: Install pinned Blender
+        env:
+          BLENDER_URL: https://download.blender.org/release/Blender5.2/blender-5.2.0-linux-x64.tar.xz
+          BLENDER_SHA256: 96f6c181a30f4950607839dc84d42a354b250d8a0231b098b59b7bc69c351c48
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes bubblewrap
+          curl --fail --location --proto '=https' --tlsv1.2 "$BLENDER_URL" --output /tmp/blender.tar.xz
+          printf '%s  %s\n' "$BLENDER_SHA256" /tmp/blender.tar.xz | sha256sum --check
+          tar --extract --file /tmp/blender.tar.xz --directory /tmp
+          printf 'BLENDER_ROOT=%s\n' /tmp/blender-5.2.0-linux-x64 >> "$GITHUB_ENV"
+          printf 'BLENDER_BIN=%s\n' /tmp/blender-5.2.0-linux-x64/blender >> "$GITHUB_ENV"
 
       - name: Validate manifest
         run: ./omarchy/bin/omarchy-plugin-validate ./plugin
@@ -45,10 +60,69 @@ jobs:
         working-directory: plugin
         run: python scripts/test-quick3d-loader.py --expect ready
 
+      - name: Validate committed Blender source
+        working-directory: plugin
+        run: |
+          test ! -L models/switch-pro/source/switch-pro.blend
+          test -f models/switch-pro/source/switch-pro.blend
+          test "$(stat --format='%s' models/switch-pro/source/switch-pro.blend)" -le 33554432
+          mkdir -p /tmp/blender-validation/home
+          sudo systemd-run --quiet --wait --pipe --collect --uid="$(id -u)" \
+            --property=MemoryMax=4G --property=MemorySwapMax=0 \
+            --property=TasksMax=128 --property=CPUQuota=400% \
+            /usr/bin/timeout --signal=TERM --kill-after=15s 180s \
+            /usr/bin/prlimit --as=4294967296 --nofile=1024 -- \
+            bwrap --clearenv --unshare-net --unshare-pid --cap-drop ALL \
+              --die-with-parent --new-session \
+              --ro-bind /usr /usr --ro-bind /bin /bin --ro-bind /lib /lib \
+              --ro-bind /lib64 /lib64 --ro-bind /etc /etc \
+              --ro-bind "$PWD/models/switch-pro/tools" "$PWD/models/switch-pro/tools" \
+              --ro-bind "$PWD/models/switch-pro/asset-contract.json" \
+                "$PWD/models/switch-pro/asset-contract.json" \
+              --ro-bind "$PWD/models/switch-pro/source" "$PWD/models/switch-pro/source" \
+              --tmpfs /tmp \
+              --ro-bind "$BLENDER_ROOT" "$BLENDER_ROOT" \
+              --bind /tmp/blender-validation /tmp/blender-validation \
+              --dev /dev --proc /proc \
+              --setenv HOME /tmp/blender-validation/home \
+              --setenv TMPDIR /tmp/blender-validation --setenv PATH /usr/bin \
+              --setenv LANG C.UTF-8 --setenv ALSOFT_DRIVERS null \
+              --setenv SWITCH_PRO_VALIDATION_PATH /tmp/blender-validation/source.json \
+              --chdir "$PWD" \
+              -- "$BLENDER_BIN" --background --factory-startup --disable-autoexec \
+              --offline-mode --python-exit-code 1 --disable-depsgraph-on-file-load \
+              models/switch-pro/source/switch-pro.blend \
+              --python models/switch-pro/tools/validate_model.py
+          python -c 'import json; actual=json.load(open("/tmp/blender-validation/source.json", encoding="utf-8")); expected=json.load(open("models/switch-pro/checkpoint.json", encoding="utf-8"))["validation"]; assert actual == expected'
+          sudo systemd-run --quiet --wait --pipe --collect --uid="$(id -u)" \
+            --property=MemoryMax=4G --property=MemorySwapMax=0 \
+            --property=TasksMax=128 --property=CPUQuota=400% \
+            /usr/bin/timeout --signal=TERM --kill-after=15s 180s \
+            /usr/bin/prlimit --as=4294967296 --nofile=1024 -- \
+            bwrap --clearenv --unshare-net --unshare-pid --cap-drop ALL \
+              --die-with-parent --new-session \
+              --ro-bind /usr /usr --ro-bind /bin /bin --ro-bind /lib /lib \
+              --ro-bind /lib64 /lib64 --ro-bind /etc /etc \
+              --ro-bind "$PWD/models/switch-pro/tools" "$PWD/models/switch-pro/tools" \
+              --ro-bind "$PWD/models/switch-pro/asset-contract.json" \
+                "$PWD/models/switch-pro/asset-contract.json" \
+              --ro-bind "$PWD/models/switch-pro/source" "$PWD/models/switch-pro/source" \
+              --tmpfs /tmp \
+              --ro-bind "$BLENDER_ROOT" "$BLENDER_ROOT" \
+              --bind /tmp/blender-validation /tmp/blender-validation \
+              --dev /dev --proc /proc \
+              --setenv HOME /tmp/blender-validation/home \
+              --setenv TMPDIR /tmp/blender-validation --setenv PATH /usr/bin \
+              --setenv LANG C.UTF-8 --setenv ALSOFT_DRIVERS null --chdir "$PWD" \
+              -- "$BLENDER_BIN" --background --factory-startup --disable-autoexec \
+              --offline-mode --python-exit-code 1 --disable-depsgraph-on-file-load \
+              models/switch-pro/source/switch-pro.blend \
+              --python models/switch-pro/tools/test_validator.py
+
       - name: Run backend tests
         working-directory: plugin
         run: |
-          python -m compileall -q scripts tests
+          python -m compileall -q scripts tests models/switch-pro/tools
           python -m unittest discover -s tests -v
 
       - name: Run model tests
@@ -61,6 +135,8 @@ jobs:
       - name: Check shell syntax
         run: |
           bash -n plugin/scripts/check-release-metadata.sh
+          bash -n plugin/scripts/check-model-toolchain.sh
+          bash -n plugin/scripts/build-switch-pro-model.sh
           bash -n plugin/scripts/lint-qml.sh
           bash -n plugin/scripts/test-quick3d-performance.sh
           bash -n plugin/scripts/clear-details-window-rule
@@ -78,7 +154,9 @@ jobs:
           persist-credentials: false
 
       - name: Install Qt without Quick 3D
-        run: python -m pip install --disable-pip-version-check --no-cache-dir --only-binary=:all: PySide6-Essentials==6.11.2
+        run: >-
+          python -m pip install --disable-pip-version-check --no-cache-dir
+          --only-binary=:all: PySide6-Essentials==6.11.2
 
       - name: Verify optional module boundary
         run: python scripts/test-quick3d-loader.py --expect error

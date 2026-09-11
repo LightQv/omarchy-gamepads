@@ -9,6 +9,14 @@ All notable changes to this project will be documented here.
 - Add controller, pointer, and dedicated keyboard camera interaction with reset.
 - Add strict visual-profile, animation, scene-loading, and missing-module checks.
 - Add the Phase 7 model contract, provenance records, and maintainer toolchain check.
+- Add a Blender reconstruction experiment with measured references, packed original PBR maps, silhouette comparisons, and multi-view/turntable reviews; preserve its rejected baseline.
+- Resume geometry-first refinement with rolled shell/grip sections, a tapered top insert, nested shoulders, neutral-gray reviews, and uncropped turntable framing. Await geometry acceptance before material development.
+- Refine rear and underside geometry after front/top acceptance with slimmer section profiles, oval grip ends, surface-fitted underside details, and comparative volume/depth evidence.
+- Refine the underside into a narrow forward lip and reshape the grip side profiles; add fitted low-side/low-front gray views, longitudinal section evidence, and front/top/rear regression comparisons.
+- Rebuild the grips and underside from nine user photographs, with independent rearward grip/forward underside sweeps, conditioned curved cover seams, five-view reconstruction fits, source-bound photo-outline evidence, and preserved control meshes.
+- Restore the better photo-based source and retry rear refinement with a continuous central/side-waist wedge, upper-handle rounding, shape-aware mesh simplification, and built-section kink regression checks.
+- Reduce front-to-back handle depth and strengthen the upper-back curve while preserving the improved central rear; add bilateral thickness/curvature checks and neutral-gray before/after evidence.
+- Record stakeholder geometry acceptance as `switch-pro-geometry-v1`, preserve reusable authoring tools and private references, and move exploratory work into one verified external rollback archive.
 
 ## [1.0.0] - 2026-09-08
 

@@ -8,6 +8,17 @@ fail() {
 }
 
 command -v blender >/dev/null || fail 'Blender is not installed.'
+command -v bwrap >/dev/null || fail 'Bubblewrap is required to sandbox Blender.'
+command -v flock >/dev/null || fail 'flock is required to serialize model builds.'
+command -v prlimit >/dev/null || fail 'prlimit is required to bound Blender resources.'
+command -v systemd-run >/dev/null || fail 'systemd-run is required to bound aggregate Blender resources.'
+command -v timeout >/dev/null || fail 'timeout is required to bound Blender execution.'
+python -c 'import PIL, numpy' >/dev/null \
+  || fail 'python-pillow and python-numpy are required for maintainer-only image comparisons.'
+systemd-run --user --scope --quiet --collect \
+  --property=MemoryMax=4G --property=MemorySwapMax=0 \
+  --property=TasksMax=128 --property=CPUQuota=400% -- /bin/true \
+  || fail 'the user systemd manager cannot create a resource-bounded scope.'
 [[ -x /usr/lib/qt6/bin/balsam ]] || fail 'Qt Quick 3D Balsam is not installed.'
 
 blender_version=$(blender --version 2>/dev/null)
@@ -33,7 +44,7 @@ mkdir "$probe_root/output"
 export MODEL_TOOLCHAIN_PROBE_GLB="$probe_root/probe.glb"
 
 blender --background --factory-startup --disable-autoexec --python-exit-code 1 \
-  --python-expr 'import bpy, cattrs, os; assert bpy.app.version[:2] == (5, 2); bpy.ops.mesh.primitive_cube_add(); bpy.ops.export_scene.gltf(filepath=os.environ["MODEL_TOOLCHAIN_PROBE_GLB"], export_format="GLB", export_yup=True, export_animations=False, export_cameras=False, export_lights=False, export_tangents=False, export_extras=False, export_apply=False)' >/dev/null \
+  --python-expr 'import bpy, os; assert bpy.app.version[:2] == (5, 2); bpy.ops.mesh.primitive_cube_add(); bpy.ops.export_scene.gltf(filepath=os.environ["MODEL_TOOLCHAIN_PROBE_GLB"], export_format="GLB", export_yup=True, export_animations=False, export_cameras=False, export_lights=False, export_tangents=False, export_extras=False, export_apply=False)' >/dev/null \
   || fail 'Blender headless Python validation failed.'
 
 /usr/lib/qt6/bin/balsam --outputPath "$probe_root/output" "$probe_root/probe.glb" >/dev/null \
