@@ -38,7 +38,6 @@ theme bindings, individual controls, and controller-scoped diagnostic marks.
 `scripts/test-schematic.sh [output-directory]` exercises the native drawing and
 can keep synthetic dark, light, monochrome, pressed, released, diagnostic, and
 compact previews for inspection. Without a directory its outputs are temporary.
-The [visual work archive](docs/visual-work-archive.md) preserves the retired 3D work.
 
 ## Controller Profiles
 

@@ -56,5 +56,5 @@
 - Phase 5 adds neutral capture, guided digital and analog checks, diagnostic statuses, retry behavior, and privacy-safe reports.
 - The subsequent visual prototype and modeling work were retired on 2026-09-13.
   Details subsequently gained a dithered 2D schematic, with profiles focused on
-  input and diagnostics. See [visual work recovery](visual-work-archive.md) for
-  the complete earlier implementation.
+  input and diagnostics. The earlier implementation is not distributed with this
+  branch.

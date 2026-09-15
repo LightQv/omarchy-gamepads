@@ -99,9 +99,8 @@ The Switch Pro profile has been physically verified over USB and Bluetooth.
 Diagnostic thresholds are intentionally conservative and report observations,
 not hardware-failure conclusions.
 
-The current schematic supports the Switch Pro profile. The previous 3D prototype
-and modeling work are preserved in a verified external archive; see
-[visual work recovery](docs/visual-work-archive.md).
+The current schematic supports the Switch Pro profile. The retired 3D prototype
+and its authoring sources are not distributed with this branch.
 
 ## Requirements
 
@@ -211,8 +210,7 @@ change or preparing a release.
 
 Current visual development uses a compact 2D schematic alongside controller
 status, live input, and guided diagnostics. Additional controller families can
-add their own diagrams and diagnostic profiles. Previous geometry and material
-progress can be resumed from the [external recovery archive](docs/visual-work-archive.md).
+add their own diagrams and diagnostic profiles.
 
 ## License
 

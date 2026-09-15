@@ -39,7 +39,7 @@ for palette/visibility changes; live controls update as ordinary 2D items. The
 loader destroys the drawing when Details closes or selects an unsupported profile.
 
 Native coverage and preview capture are provided by `scripts/test-schematic.sh`.
-The retired visual contract and 3D sources remain in the [external archive](visual-work-archive.md).
+The retired 3D sources and visual contract are not part of this branch.
 
 ## Diagnostic Thresholds
 

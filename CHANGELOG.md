@@ -10,13 +10,8 @@ All notable changes to this project will be documented here.
   clicks, and show controller-scoped diagnostic marks with theme-safe contrast.
 - Add native schematic input, palette, compact-layout, and lifecycle checks with
   optional synthetic previews.
-- Preserve the complete geometry/material work through shoulder revision 4 and the
-  3D prototype in a verified external recovery archive, including private references,
-  exact recipes, review history, uncommitted work, and Git history.
-- Retire the 3D prototype and camera controls while keeping controller profiles
-  focused on input and guided diagnostics.
-- Remove archived authoring files and dedicated Blender/Quick 3D checks from the active
-  repository, and retain compact archive and restoration documentation.
+- Retire the 3D prototype and camera controls, remove its authoring and reference
+  artifacts, and keep controller profiles focused on input and guided diagnostics.
 
 ## [1.0.0] - 2026-09-08
 
