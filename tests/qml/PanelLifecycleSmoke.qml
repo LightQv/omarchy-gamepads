@@ -266,7 +266,7 @@ ShellRoot {
             if (!panel.opened)
                 return;
             if (root.phase === 0) {
-                if (!panel.visualProfileLoaded || (!panel.visualProfileActive && !panel.visualProfileUnavailable))
+                if (!panel.visualReady)
                     return;
                 root.expect(verticalFades.startOpacity === 0 && verticalFades.endOpacity > 0, "vertical fade at start");
                 verticalFadeViewport.contentY = 50;
@@ -286,14 +286,8 @@ ShellRoot {
                 root.expect(fakeService.selectedId === "12", "payload selection");
                 root.expect(panel.selectedProfileId === "switch-pro", "profile selection");
                 root.expect(panel.streamingControllerId === "12", "initial streaming");
-                root.expect(panel.visualProfileActive, "profile visual loads");
-                root.expect(panel.visualSemanticBindingsValid, "profile semantic bindings");
-                root.expect(panel.visualInteractionMode === "overview", "visual opens in overview mode");
-                var initialYaw = panel.visualCameraYaw;
-                root.expect(panel.handleVisualKey("d"), "overview camera key accepted");
-                root.expect(panel.visualCameraYaw > initialYaw, "overview camera key changes yaw");
-                root.expect(panel.handleVisualKey("r"), "camera reset accepted");
-                root.expect(panel.visualCameraYaw === 0, "camera reset restores yaw");
+                root.expect(!panel.visualPlaceholderVisible, "supported profile shows the controller schematic");
+                root.expect(Object.keys(panel.visualInput.controls).length === 18, "schematic exposes every digital control");
                 root.expect(panel.informationFits, "default information fit");
                 root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
                 root.expect(panel.defaultWindowWidth === 1120 && panel.defaultWindowHeight === 760, "expanded default size");
@@ -331,8 +325,7 @@ ShellRoot {
                 panel.handleNavigation(0, 1);
                 panel.activateCurrentRegion();
                 root.expect(panel.diagnosticPhase === "baseline_waiting", "diagnostic waiting phase");
-                root.expect(panel.visualInteractionMode === "diagnostic", "diagnostic fixes visual mode");
-                root.expect(!panel.handleVisualKey("d"), "diagnostic rejects camera movement");
+                root.expect(panel.visualReady, "diagnostics retain the controller schematic");
                 root.expect(panel.selectedBottomView === "guided", "diagnostic selects guided view");
                 root.phase = 13;
                 return;
@@ -359,7 +352,6 @@ ShellRoot {
                 root.expect(panel.opened && panel.cancelConfirmationOpen, "diagnostic close confirmation");
                 panel.confirmDiagnosticCancel();
                 root.expect(panel.diagnosticPhase === "review" && fakeService.diagnosticState.status === "incomplete", "diagnostic cancel review");
-                root.expect(panel.visualInteractionMode === "review", "review visual mode");
                 panel.handleNavigation(0, 1);
                 root.expect(panel.actionCursorRow === "retry", "review exposes retry target row");
                 var retryControl = panel.retryCursorControl;
@@ -377,7 +369,6 @@ ShellRoot {
                 root.expect(panel.diagnosticPhase === "review", "retry cancellation returns to review");
                 panel.selectController("11");
                 root.expect(fakeService.selectedId === "11", "review selection unlocked");
-                root.expect(panel.visualInteractionMode === "overview", "review overlay scoped to tested controller");
                 fakeService.selectController("12");
                 fakeService.resetDiagnostics();
                 root.expect(panel.selectedBottomView === "live", "reset selects live input");
@@ -398,6 +389,8 @@ ShellRoot {
                 root.expect(panel.liveButtonIsPressed("south"), "live button state");
                 root.expect(!panel.liveButtonIsPressed("left_trigger"), "digital trigger below threshold");
                 root.expect(panel.liveControlIndicator("left_trigger") === "0.74", "digital trigger shows numeric value below threshold");
+                root.expect(panel.visualInput.controls.south.active && !panel.visualInput.controls.left_trigger.active,
+                    "schematic follows independent button and sub-threshold trigger input");
                 root.expect(!panel.liveLeftStickActive && !panel.liveRightStickActive, "sticks below movement threshold");
                 fakeService.updateSelectedInput(0.2, 0.75);
                 root.phase = 12;
@@ -406,6 +399,8 @@ ShellRoot {
             if (root.phase === 12) {
                 root.expect(panel.liveButtonIsPressed("left_trigger"), "digital trigger at threshold");
                 root.expect(panel.liveControlIndicator("left_trigger") === "0.75", "digital trigger shows numeric value at threshold");
+                root.expect(panel.visualInput.controls.left_trigger.active && panel.visualInput.sticks.left_stick.active,
+                    "schematic uses the same trigger and movement thresholds as live input");
                 root.expect(panel.liveLeftStickActive && !panel.liveRightStickActive, "stick at movement threshold");
                 root.expect(panel.streamingControllerId === "11", "input preserves streaming");
                 fakeService.addController(root.controller("13", "Xbox Wireless Controller", "xboxone", "xbox"));
@@ -417,7 +412,8 @@ ShellRoot {
             if (root.phase === 2) {
                 root.expect(panel.tabCount === 3, "hotplug tabs");
                 root.expect(panel.selectedProfileId === "", "unsupported profile");
-                root.expect(!panel.visualProfileActive, "unsupported visual fallback");
+                root.expect(panel.visualPlaceholderVisible && panel.visualStatusText === "Detailed profile unavailable", "unsupported profile fallback");
+                root.expect(!panel.visualReady, "unsupported controller unloads the schematic");
                 root.expect(panel.streamingControllerId === "13", "unsupported streaming");
                 fakeService.removeController("13");
                 root.phase = 3;

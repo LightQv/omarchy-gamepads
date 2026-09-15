@@ -39,7 +39,7 @@ if /usr/bin/grep -Fq '<git-url>' "$readme"; then
   exit 1
 fi
 
-for dependency in python-pysdl3 qt6-quick3d; do
+for dependency in python-pysdl3; do
   /usr/bin/grep -Fq "$dependency" "$readme" || {
     printf 'README.md does not document runtime dependency: %s\n' "$dependency" >&2
     exit 1

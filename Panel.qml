@@ -7,8 +7,8 @@ import Quickshell.Io
 import qs.Commons
 import qs.Ui as Ui
 import "Model.js" as Model
-import "VisualState.js" as Visual
 import "profiles/ProfileRegistry.js" as Profiles
+import "profiles/switch-pro" as SwitchPro
 import "components" as Components
 
 // Tooling cannot resolve Quickshell's QProcess::ExitStatus signal parameter.
@@ -40,12 +40,10 @@ Item {
     readonly property string selectedProfileId: controllerProfile ? controllerProfile.id : ""
     readonly property string streamingControllerId: registeredStreamingId
     readonly property real scrollPosition: scroll.contentItem ? scroll.contentItem.contentY : 0
-    readonly property bool visualProfileLoaded: profileView.active && profileView.status === Loader.Ready && !!profileView.item
-    readonly property bool visualProfileActive: visualProfileLoaded && profileView.item.sceneReady === true
-    readonly property bool visualProfileUnavailable: visualProfileLoaded && profileView.item.sceneUnavailable === true
-    readonly property bool visualSemanticBindingsValid: visualProfileActive && profileView.item.semanticBindingsValid === true
-    readonly property string visualInteractionMode: Visual.interactionMode(controller, controllerProfile, diagnosticState)
-    readonly property real visualCameraYaw: visualProfileActive ? profileView.item.cameraYaw : 0
+    readonly property bool visualPlaceholderVisible: visualPlaceholder.visible
+    readonly property string visualStatusText: visualStatus.text
+    readonly property bool visualReady: visualLoader.status === Loader.Ready && !!visualLoader.item
+    readonly property var visualInput: visualReady ? visualLoader.item.projection : ({ controls: {}, sticks: {} })
     readonly property bool informationFits: !controller || information.implicitHeight <= scroll.height
     readonly property real visualPaneWidth: visualPane.width
     readonly property var diagnosticState: service && service.diagnosticState ? service.diagnosticState : ({ phase: "idle" })
@@ -101,7 +99,6 @@ Item {
     }
     onSelectedControllerIdChanged: {
         resetScroll();
-        Qt.callLater(resetVisualView);
     }
     onDiagnosticPhaseChanged: {
         syncStreamingRequest();
@@ -297,16 +294,6 @@ Item {
             if (scroll.contentItem)
                 scroll.contentItem.contentY = 0;
         });
-    }
-
-    function resetVisualView() {
-        if (visualProfileLoaded && typeof profileView.item.resetView === "function")
-            profileView.item.resetView();
-    }
-
-    function handleVisualKey(text) {
-        return visualProfileLoaded && typeof profileView.item.handleCameraKey === "function"
-            ? profileView.item.handleCameraKey(text) : false;
     }
 
     function clearStreamingRequest() {
@@ -521,8 +508,6 @@ Item {
                     event.accepted = true;
                 } else if (event.key === Qt.Key_End) {
                     root.scrollVisibleContentToEdge(true);
-                    event.accepted = true;
-                } else if (root.handleVisualKey(event.text)) {
                     event.accepted = true;
                 }
             }
@@ -751,48 +736,29 @@ Item {
                                 }
 
                                 Loader {
-                                    id: profileView
-                                    active: visualPane.visible && root.opened && !!root.controllerProfile
-                                    asynchronous: true
-                                    visible: active
+                                    id: visualLoader
                                     anchors.top: visualHeader.bottom
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
                                     anchors.topMargin: Style.space(8)
-                                    source: root.controllerProfile ? Qt.resolvedUrl("profiles/" + root.controllerProfile.viewComponent) : ""
-                                    onLoaded: {
-                                        if (!item)
-                                            return;
-                                        if ("controller" in item)
-                                            item.controller = Qt.binding(function () { return root.controller; });
-                                        if ("profile" in item)
-                                            item.profile = Qt.binding(function () { return root.controllerProfile; });
-                                        if ("diagnosticState" in item)
-                                            item.diagnosticState = Qt.binding(function () { return root.diagnosticState; });
-                                        if ("interactionMode" in item)
-                                            item.interactionMode = Qt.binding(function () { return root.visualInteractionMode; });
-                                        if ("renderActive" in item)
-                                            item.renderActive = Qt.binding(function () { return root.opened && visualPane.visible; });
-                                        if ("foreground" in item)
-                                            item.foreground = Qt.binding(function () { return root.foreground; });
-                                        if ("background" in item)
-                                            item.background = Qt.binding(function () { return root.background; });
-                                        if ("accent" in item)
-                                            item.accent = Qt.binding(function () { return Color.accent; });
-                                        if ("urgent" in item)
-                                            item.urgent = Qt.binding(function () { return Color.urgent; });
-                                        if ("fontFamily" in item)
-                                            item.fontFamily = Qt.binding(function () { return root.fontFamily; });
-                                    }
-                                    onStatusChanged: {
-                                        if (status === Loader.Error)
-                                            console.warn("Controller visual profile unavailable: load_failed");
+                                    active: root.opened && !!root.controllerProfile && root.controllerProfile.id === "switch-pro"
+                                    sourceComponent: Component {
+                                        SwitchPro.Schematic {
+                                            controller: root.controller
+                                            profile: root.controllerProfile
+                                            diagnosticState: root.diagnosticState
+                                            active: root.opened
+                                            foreground: root.foreground
+                                            background: root.background
+                                            fontFamily: root.fontFamily
+                                        }
                                     }
                                 }
 
                                 Ui.CursorSurface {
-                                    visible: !root.controllerProfile
+                                    id: visualPlaceholder
+                                    visible: !visualLoader.active || visualLoader.status === Loader.Error
                                     anchors.top: visualHeader.bottom
                                     anchors.left: parent.left
                                     anchors.right: parent.right
@@ -807,8 +773,9 @@ Item {
                                         spacing: Style.space(8)
 
                                         Text {
+                                            id: visualStatus
                                             width: parent.width
-                                            text: "Detailed profile unavailable"
+                                            text: root.controllerProfile ? "Controller view unavailable" : "Detailed profile unavailable"
                                             color: root.foreground
                                             font.family: root.fontFamily
                                             font.pixelSize: Style.font.title
@@ -818,8 +785,10 @@ Item {
 
                                         Text {
                                             width: parent.width
-                                            text: "This SDL-recognized controller keeps its vitals and device tab, but does not yet have a visual or guided diagnostic profile."
-                                            color: Qt.darker(root.foreground, 1.35)
+                                            text: root.controllerProfile
+                                                ? "Live input and guided diagnostics are available below."
+                                                : "Live input and vitals are available. This controller does not yet have a guided diagnostic profile."
+                                            color: Color.muted
                                             font.family: root.fontFamily
                                             font.pixelSize: Style.font.bodySmall
                                             horizontalAlignment: Text.AlignHCenter

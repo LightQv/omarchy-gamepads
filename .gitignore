@@ -2,9 +2,3 @@ __pycache__/
 *.py[cod]
 .coverage
 .pytest_cache/
-*.blend[0-9]*
-*.blend@
-/models/switch-pro/runtime/.staging/
-/models/switch-pro/review/turntable/
-/models/switch-pro/work/
-/models/switch-pro/references-local/

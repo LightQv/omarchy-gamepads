@@ -47,10 +47,3 @@ cd -- "$(dirname -- "$repo_root")"
   --unqualified disable \
   -I "$import_root" \
   "${qml_files[@]}"
-
-# The profile scene has no Quickshell types, so its imports and Quick 3D types
-# can be checked without the host-metadata exclusions required above.
-"$qmllint" \
-  --ignore-settings \
-  -W 0 \
-  "$repo_root/profiles/switch-pro/SwitchProScene.qml"

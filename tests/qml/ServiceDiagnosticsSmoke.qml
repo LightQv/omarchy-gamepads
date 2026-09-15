@@ -10,7 +10,6 @@ import "Plugin/profiles/ProfileRegistry.js" as Profiles
 ShellRoot {
     id: root
 
-    readonly property string pluginRoot: Quickshell.env("PLUGIN_ROOT")
     property bool exercised: false
 
     function profileFor(controller) {
@@ -19,7 +18,6 @@ ShellRoot {
 
     Plugin.Service {
         id: service
-        manifest: ({ __sourceDir: root.pluginRoot })
     }
 
     Timer {

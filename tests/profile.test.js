@@ -23,11 +23,10 @@ const switchProController = {
   productId: "2009"
 };
 
-test("resolves the Switch Pro profile and semantic labels", () => {
+test("resolves the Switch Pro diagnostic profile and control labels", () => {
   const profile = Registry.profileFor(switchProController);
   assert.equal(profile.id, "switch-pro");
   assert.equal(Registry.labelFor(profile, "south"), "B");
-  assert.equal(profile.semanticParts.south, "button_b");
   assert.deepEqual(Array.from(profile.expectedButtons), [
     "south", "east", "west", "north", "back", "start", "misc1", "guide",
     "left_stick", "right_stick", "dpad_up", "dpad_down", "dpad_left",
@@ -36,8 +35,8 @@ test("resolves the Switch Pro profile and semantic labels", () => {
   assert.deepEqual(Array.from(profile.expectedAxes), [
     "leftx", "lefty", "rightx", "righty", "left_trigger", "right_trigger"
   ]);
-  assert.equal(profile.modelParts.includes("left_stick"), true);
-  assert.equal(profile.modelParts.includes("button_right_stick"), true);
+  assert.equal(Registry.labelFor(profile, "left_trigger"), "ZL");
+  assert.equal(Registry.labelFor(profile, "left_stick"), "Left stick");
 });
 
 test("provides valid profile-owned diagnostic thresholds", () => {
@@ -72,51 +71,17 @@ test("prefers a refined matcher and rejects ambiguous matches", () => {
 test("rejects malformed profile contracts", () => {
   const malformed = Object.assign({}, SwitchPro.profile, { id: "Not Valid" });
   assert.equal(Registry.validateProfile(malformed), false);
-  const missingView = Object.assign({}, SwitchPro.profile, { viewComponent: "../Outside.qml" });
-  assert.equal(Registry.validateProfile(missingView), false);
-  const missingMapping = Object.assign({}, SwitchPro.profile, {
-    semanticParts: Object.assign({}, SwitchPro.profile.semanticParts)
-  });
-  delete missingMapping.semanticParts.left_trigger;
-  assert.equal(Registry.validateProfile(missingMapping), false);
   const vendorOnly = Object.assign({}, SwitchPro.profile, { matchers: [{ vendorId: "057e" }] });
   assert.equal(Registry.validateProfile(vendorOnly), false);
   const productOnly = Object.assign({}, SwitchPro.profile, {
     matchers: [{ sdlTypes: ["switchpro"], productId: "2009" }]
   });
   assert.equal(Registry.validateProfile(productOnly), false);
-  const undeclaredPart = Object.assign({}, SwitchPro.profile, {
-    semanticParts: Object.assign({}, SwitchPro.profile.semanticParts, { south: "button_missing" })
-  });
-  assert.equal(Registry.validateProfile(undeclaredPart), false);
-  const staleMapping = Object.assign({}, SwitchPro.profile, {
-    semanticParts: Object.assign({}, SwitchPro.profile.semanticParts, { turbo: "button_a" })
-  });
-  assert.equal(Registry.validateProfile(staleMapping), false);
   const overlappingControl = Object.assign({}, SwitchPro.profile, {
     expectedAxes: SwitchPro.profile.expectedAxes.concat(["south"])
   });
   assert.equal(Registry.validateProfile(overlappingControl), false);
   assert.equal(Registry.validateProfile(SwitchPro.profile), true);
-});
-
-test("rejects malformed animation and model-part contracts", () => {
-  function withAnimation(changes) {
-    return Object.assign({}, SwitchPro.profile, {
-      animation: Object.assign({}, SwitchPro.profile.animation, changes)
-    });
-  }
-
-  assert.equal(Registry.validateProfile(withAnimation({ digitalTravel: 0 })), false);
-  assert.equal(Registry.validateProfile(withAnimation({ stickTiltDegrees: 46 })), false);
-  assert.equal(Registry.validateProfile(withAnimation({ transitionDurationMs: 50.5 })), false);
-  assert.equal(Registry.validateProfile(withAnimation({ unexpected: 1 })), false);
-  const missing = withAnimation({});
-  delete missing.animation.digitalTravel;
-  assert.equal(Registry.validateProfile(missing), false);
-  assert.equal(Registry.validateProfile(Object.assign({}, SwitchPro.profile, {
-    modelParts: SwitchPro.profile.modelParts.concat(["button_a"])
-  })), false);
 });
 
 test("rejects malformed or unsafe diagnostic thresholds", () => {

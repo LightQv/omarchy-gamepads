@@ -16,16 +16,16 @@ Run this checklist against the exact commit intended for release.
 omarchy plugin validate .
 scripts/check-release-metadata.sh
 scripts/lint-qml.sh
-python scripts/test-quick3d-loader.py --expect ready
 scripts/test-service.sh
 scripts/test-panel.sh
+scripts/test-schematic.sh
 bash tests/test_window_placement.sh
 node --test tests/*.test.js
 python -m compileall -q scripts tests
 python -B -m unittest discover -s tests -v
 bash -n scripts/clear-details-window-rule scripts/place-details-window \
   scripts/lint-qml.sh scripts/prepare-details-window scripts/test-panel.sh \
-  scripts/test-quick3d-performance.sh scripts/test-service.sh \
+  scripts/test-service.sh scripts/test-schematic.sh \
   tests/test_window_placement.sh
 git diff --check
 ```
@@ -50,12 +50,12 @@ git diff --check
 - Verify keyboard-only controller selection, live input, diagnostics, review,
   retry, export, and close behavior.
 - Verify minimum `760x540` Details layout and all directional scroll fades.
-- Verify every declared visual part loads and responds to its mapped input.
-- Verify overview camera input is disabled during diagnostics and restored afterward.
-- Verify pointer and dedicated keyboard camera controls plus reset.
-- Verify Quick 3D rendering stops when Details closes and survives repeated reopen cycles.
-- Verify the missing-Quick-3D fallback in an isolated Essentials-only environment.
-- Record native frame timing under a high-rate replay and check for input backlog.
+- Verify every schematic button, independent stick motion/clicks, simultaneous
+  input, release, and controller-scoped diagnostic marks.
+- Verify live palette updates and readable highlights in dark, light, and
+  monochrome themes, including the compact diagram layout.
+- Verify schematic unload/reopen and the generic unsupported-profile fallback.
+- Verify live controls and guided diagnostics work without a visual renderer.
 - Verify at least one dark and one light Omarchy theme.
 
 ## Physical Acceptance

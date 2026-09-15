@@ -6,13 +6,8 @@ ShellRoot {
     id: root
 
     property bool retried: false
-    readonly property string pluginRoot: Quickshell.env("PLUGIN_ROOT")
-
     Plugin.Service {
         id: service
-        manifest: ({
-                __sourceDir: root.pluginRoot
-            })
     }
 
     Timer {

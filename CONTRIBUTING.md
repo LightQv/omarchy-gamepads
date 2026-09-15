@@ -5,7 +5,7 @@ Keep changes focused, privacy-safe, and testable without physical hardware.
 ## Validation
 
 Before submitting a change, run these checks from an Omarchy workstation with
-Qt QML tooling, Qt Quick 3D, Node.js, and Python available:
+Qt QML tooling, Node.js, and Python available:
 
 ```bash
 omarchy plugin validate .
@@ -22,6 +22,7 @@ On an Omarchy workstation with Quickshell installed, also run:
 ```bash
 scripts/test-service.sh
 scripts/test-panel.sh
+scripts/test-schematic.sh
 ```
 
 The QML lint script uses an import-path shim because Omarchy's `qs.*` imports
@@ -29,14 +30,15 @@ need the installed shell source and plugin entry-point names can shadow shared
 components. Keep state decisions in pure JavaScript reducers where practical so
 they remain testable without a running shell.
 
-Qt Quick 3D scenes must remain behind a dynamic loader so an unavailable module
-does not prevent controller vitals or diagnostics from loading. Keep semantic
-projection in `VisualState.js`, preserve declared model-part names, and run the
-present and absent module checks described in the release checklist.
+The Switch Pro visual is a 2D QML schematic. Its static shell texture is separate
+from live control items, and its layout/input projection lives in
+`profiles/switch-pro/Schematic.js`. Keep the drawing event-driven and preserve
+theme bindings, individual controls, and controller-scoped diagnostic marks.
 
-Production asset maintainers also need Blender and Assimp from the official
-repository. Run `scripts/check-model-toolchain.sh` before changing source or
-runtime geometry. These tools are not runtime dependencies.
+`scripts/test-schematic.sh [output-directory]` exercises the native drawing and
+can keep synthetic dark, light, monochrome, pressed, released, diagnostic, and
+compact previews for inspection. Without a directory its outputs are temporary.
+The [visual work archive](docs/visual-work-archive.md) preserves the retired 3D work.
 
 ## Controller Profiles
 
@@ -45,9 +47,9 @@ SDL mapping corrections. Include deterministic fixtures and profile tests for
 new controls or protocol behavior. Record the transport, mapped SDL type, and
 observable capabilities used during physical verification.
 
-Visual profiles must declare every semantic model part and provide original or
-safely licensed geometry. Follow [`docs/model-authoring.md`](docs/model-authoring.md)
-for coordinates, pivots, runtime constraints, and the Phase 7 replacement boundary.
+Follow [`docs/controller-profile.md`](docs/controller-profile.md) for profile
+matching, control labels, and diagnostic thresholds. A new visual implementation
+should be agreed separately and keep diagnostics independent of rendering.
 
 Do not include serial numbers, Bluetooth addresses, usernames, raw device
 paths, or unredacted diagnostic reports in fixtures or issues.

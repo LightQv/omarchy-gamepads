@@ -33,43 +33,6 @@ var profile = {
   ],
   expectedAxes: ["leftx", "lefty", "rightx", "righty", "left_trigger", "right_trigger"],
   triggerType: "digital",
-  viewComponent: "switch-pro/SwitchProView.qml",
-  modelParts: [
-    "shell", "left_grip", "right_grip", "left_stick", "right_stick",
-    "button_a", "button_b", "button_x", "button_y", "dpad_base",
-    "dpad_up", "dpad_down", "dpad_left", "dpad_right", "button_l",
-    "button_r", "button_zl", "button_zr", "button_plus", "button_minus",
-    "button_home", "button_capture", "button_left_stick", "button_right_stick"
-  ],
-  semanticParts: {
-    south: "button_b",
-    east: "button_a",
-    west: "button_y",
-    north: "button_x",
-    dpad_up: "dpad_up",
-    dpad_down: "dpad_down",
-    dpad_left: "dpad_left",
-    dpad_right: "dpad_right",
-    left_shoulder: "button_l",
-    right_shoulder: "button_r",
-    back: "button_minus",
-    start: "button_plus",
-    guide: "button_home",
-    misc1: "button_capture",
-    left_stick: "button_left_stick",
-    right_stick: "button_right_stick",
-    leftx: "left_stick",
-    lefty: "left_stick",
-    rightx: "right_stick",
-    righty: "right_stick",
-    left_trigger: "button_zl",
-    right_trigger: "button_zr"
-  },
-  animation: {
-    digitalTravel: 0.06,
-    stickTiltDegrees: 14,
-    transitionDurationMs: 80
-  },
   // Provisional SDL-normalized values; physical testing should refine them.
   thresholds: {
     baselineDurationMs: 1500,
@@ -81,7 +44,5 @@ var profile = {
     minimumNegativeRange: 0.75,
     movementDetection: 0.2
   },
-  knownLimitations: [
-    "The version 2 prototype uses controlled primitive geometry pending the production model."
-  ]
+  knownLimitations: []
 };

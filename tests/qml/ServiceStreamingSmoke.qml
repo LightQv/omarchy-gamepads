@@ -5,14 +5,10 @@ import "Plugin" as Plugin
 ShellRoot {
     id: root
 
-    readonly property string pluginRoot: Quickshell.env("PLUGIN_ROOT")
     property int phase: 0
 
     Plugin.Service {
         id: service
-        manifest: ({
-                __sourceDir: root.pluginRoot
-            })
     }
 
     Timer {
