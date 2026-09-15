@@ -142,6 +142,7 @@ ShellRoot {
             }
             controllers = next;
             controllerTabs = tabProjection();
+            diagnosticState = Diagnostics.disconnect(diagnosticState, id);
             if (selectedId === id)
                 selectedId = next.length === 0 ? "" : next[Math.min(Math.max(0, removedIndex), next.length - 1)].id;
         }
@@ -226,6 +227,22 @@ ShellRoot {
 
     Item {
         visible: false
+        width: 418
+        height: 360
+
+        Components.DiagnosticTray {
+            id: compactDiagnosticTray
+            anchors.fill: parent
+            service: fakeService
+            controller: fakeService.selectedController
+            profile: panel.controllerProfile
+            testedControllerPresent: true
+            compactLayout: true
+        }
+    }
+
+    Item {
+        visible: false
         width: 100
         height: 100
 
@@ -284,10 +301,14 @@ ShellRoot {
                 root.expect(fakeService.selectedId === "12", "payload selection");
                 root.expect(panel.selectedProfileId === "switch-pro", "profile selection");
                 root.expect(panel.streamingControllerId === "12", "initial streaming");
-                root.expect(!panel.visualProfileActive, "v1 profile visual remains hidden");
                 root.expect(panel.informationFits, "default information fit");
-                root.expect(panel.visualPaneWidth >= 360, "visual pane minimum");
-                root.expect(panel.defaultWindowWidth === 1120 && panel.defaultWindowHeight === 760, "expanded default size");
+                root.expect(panel.inputPaneWidth >= 360, "input pane minimum");
+                root.expect(panel.inputPaneHeight > 400, "input pane uses workspace height");
+                root.expect(panel.inputContentHeight === panel.inputPaneHeight, "input surface fills pane");
+                root.expect(panel.liveButtonsPaneY > panel.liveStickRowY, "buttons render below stick row");
+                root.expect(panel.defaultWindowWidth === 1120 && panel.defaultWindowHeight === 620, "expanded default size");
+                root.expect(panel.liveStickTitleGap === 12, "stick headings use section spacing");
+                root.expect(panel.liveButtonsTitleGap === 12, "buttons heading uses section spacing");
                 root.expect(panel.selectedBottomView === "live", "live input opens selected");
                 root.expect(panel.actionCursorRow === "mode" && panel.actionCursorIndex === 0, "live mode receives initial action cursor");
                 panel.cycleController(1);
@@ -305,9 +326,9 @@ ShellRoot {
                 root.expect(panel.liveDigitalControlNames[18] === "right_paddle1", "unprofiled controls follow profile controls");
                 root.expect(panel.pressedButtonsLabel() === "None", "live button summary");
                 var liveContentHeight = panel.inputContentHeight;
-                root.expect(panel.liveButtonsScrollable, "maximum live buttons remain scrollable");
-                panel.scrollVisibleContent(1, true);
-                root.expect(panel.liveButtonScrollPosition > 0, "page navigation scrolls live buttons");
+                root.expect(compactDiagnosticTray.liveButtonsScrollable, "maximum live buttons remain scrollable in compact pane");
+                compactDiagnosticTray.scrollVisibleContent(1, true);
+                root.expect(compactDiagnosticTray.liveButtonScrollPosition > 0, "compact pane scrolls live buttons");
                 panel.handleNavigation(1, 0);
                 root.expect(panel.selectedBottomView === "guided" && panel.actionCursorRow === "mode" && panel.actionCursorIndex === 1,
                     "horizontal navigation selects guided mode");
@@ -358,6 +379,8 @@ ShellRoot {
                 root.expect(panel.retryCursorControl === selectedRetryControl, "retry selector ignores action activation");
                 panel.handleNavigation(0, 1);
                 root.expect(panel.actionCursorRow === "actions", "down reaches review actions");
+                root.expect(panel.guidedActionsFit && compactDiagnosticTray.guidedActionsFit, "review actions fit responsive panes");
+                root.expect(panel.guidedLayoutFits && compactDiagnosticTray.guidedLayoutFits, "review sections do not overlap");
                 panel.activateCurrentRegion();
                 root.expect(fakeService.retriedControl === selectedRetryControl, "retry action uses visible target");
                 root.expect(panel.diagnosticPhase === "digital" && panel.actionCursorRow === "actions", "retry enters matching diagnostic phase with valid cursor");
@@ -404,7 +427,7 @@ ShellRoot {
             if (root.phase === 2) {
                 root.expect(panel.tabCount === 3, "hotplug tabs");
                 root.expect(panel.selectedProfileId === "", "unsupported profile");
-                root.expect(!panel.visualProfileActive, "unsupported visual fallback");
+                root.expect(panel.guidedDiagnosticTitle === "GUIDED DIAGNOSTIC UNAVAILABLE", "unsupported guided fallback");
                 root.expect(panel.streamingControllerId === "13", "unsupported streaming");
                 fakeService.removeController("13");
                 root.phase = 3;
@@ -446,6 +469,12 @@ ShellRoot {
             root.expect(fakeService.selectedId === "21", "reopen selection");
             root.expect(panel.streamingControllerId === "21", "reopen streaming");
             root.expect(fakeService.beginDiagnostics(panel.controller, panel.controllerProfile), "reopen diagnostic start");
+            fakeService.removeController("21");
+            root.expect(!panel.controller && panel.inputPaneWidth > 700, "disconnected diagnostic keeps full-width input pane");
+            root.expect(panel.selectedBottomView === "guided", "disconnected diagnostic remains visible");
+            root.expect(panel.diagnosticPhase === "review" && fakeService.diagnosticState.connected === false,
+                "disconnect enters a persistent disconnected review");
+            root.expect(panel.guidedDiagnosticTitle.indexOf("REVIEW") === 0, "disconnected review remains actionable");
             panel.close();
             root.expect(!panel.opened && fakeService.diagnosticState.phase === "review", "host close ends diagnostic");
             root.expect(fakeService.streamingId === "", "reopen cleanup");

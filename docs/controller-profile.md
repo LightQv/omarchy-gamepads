@@ -10,13 +10,10 @@ Controller profiles describe controller-family behavior without changing the SDL
 - `labels`: semantic control labels shown in the UI.
 - `expectedButtons` and `expectedAxes`: controls expected from the profile.
 - `triggerType`: `digital` or `analog`.
-- `viewComponent`: bundled QML component below `profiles/`.
-- `semanticParts`: mapping from every expected control to a stable visual part name.
-- `animation`: profile-specific visual parameters.
 - `thresholds`: profile-specific diagnostic thresholds.
 - `knownLimitations`: concise profile limitations.
 
-All expected controls must have semantic mappings. Registry validation rejects malformed IDs, unsafe labels, parent-directory view paths, incomplete mappings, malformed thresholds, and ambiguous equal-specificity matches.
+Registry validation rejects malformed IDs, unsafe labels, malformed thresholds, and ambiguous equal-specificity matches.
 
 ## Diagnostic Thresholds
 
@@ -32,9 +29,8 @@ The initial Switch Pro profile matches SDL's normalized `switchpro` type. Vendor
 
 ## Extension Rules
 
-- Do not add backend logic for labels, visuals, or diagnostic thresholds.
+- Do not add backend logic for labels or diagnostic thresholds.
 - Do not match on controller display names.
 - Keep session IDs out of profiles; they identify connected instances, not hardware families.
 - Render unsupported SDL controllers with generic vitals instead of forcing a profile.
 - Add registry tests, replay fixtures, and physical test notes with every new profile.
-- Treat the semantic part names as a compatibility contract for later 3D assets.

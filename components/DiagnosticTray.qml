@@ -56,6 +56,18 @@ Item {
     readonly property bool actionsHaveCursor: cursorRow === "actions"
     readonly property int contentHeight: Style.space(compactLayout ? 196 : 238)
     readonly property real modeContentHeight: contentSurface.height
+    readonly property real liveStickRowY: liveAnalogPane.y + liveSticks.y
+    readonly property real liveButtonsPaneY: liveButtonsPane.y
+    readonly property real liveStickTitleGap: leftStickVisual.headingContentGap
+    readonly property real liveButtonsTitleGap: liveButtonContent.y - liveButtonsHeader.height
+    readonly property bool guidedActionsWrapped: actionRepeater.count > 1
+        && actionRepeater.itemAt(0) && actionRepeater.itemAt(actionRepeater.count - 1)
+        && actionRepeater.itemAt(actionRepeater.count - 1).y > actionRepeater.itemAt(0).y
+    readonly property bool guidedActionsFit: actionItemsFit()
+    readonly property bool guidedLayoutFits: guidedInstruction.y + guidedInstruction.height
+        <= (retrySelector.visible ? retrySelector.y : actionFooter.y) + 0.5
+        && (!retrySelector.visible || retrySelector.y + retrySelector.height <= actionFooter.y + 0.5)
+        && actionFooter.y + actionFooter.height <= modeBody.height + 0.5
 
     implicitHeight: contentHeight
 
@@ -85,6 +97,15 @@ Item {
 
     function result(control) {
         return diagnostic.results && diagnostic.results[control] ? diagnostic.results[control] : null;
+    }
+
+    function actionItemsFit() {
+        for (var i = 0; i < actionRepeater.count; i++) {
+            var item = actionRepeater.itemAt(i);
+            if (item && (item.x < 0 || item.x + item.width > actions.width + 0.5))
+                return false;
+        }
+        return true;
     }
 
     function buildRetryControls() {
@@ -479,10 +500,7 @@ Item {
 
     Ui.CursorSurface {
         id: contentSurface
-        anchors.top: parent.top
-        anchors.left: parent.left
-        anchors.right: parent.right
-        height: root.contentHeight
+        anchors.fill: parent
         bordered: true
         foreground: root.foreground
 
@@ -508,7 +526,7 @@ Item {
             }
 
             Text {
-                visible: root.active && root.selectedView === "live"
+                visible: root.active && root.selectedView === "live" && !root.compactLayout
                 anchors.right: parent.right
                 anchors.verticalCenter: modeTabs.verticalCenter
                 text: "GUIDED DIAGNOSTIC RUNNING"
@@ -526,15 +544,15 @@ Item {
                 anchors.bottom: parent.bottom
                 anchors.topMargin: Style.space(18)
 
-            Row {
+            Column {
                 visible: root.selectedView === "live"
                 anchors.fill: parent
                 spacing: Style.space(14)
 
                 Column {
                     id: liveAnalogPane
-                    width: Math.floor((parent.width - parent.spacing) * 0.58)
-                    height: parent.height
+                    width: parent.width
+                    height: Math.min(Style.space(240), Math.max(Style.space(140), Math.floor(parent.height * 0.48)))
                     spacing: Style.space(6)
 
                     Row {
@@ -544,6 +562,7 @@ Item {
                         spacing: Style.space(12)
 
                         StickVisualizer {
+                            id: leftStickVisual
                             width: (parent.width - parent.spacing) / 2
                             height: parent.height
                             heading: "LEFT STICK"
@@ -552,6 +571,7 @@ Item {
                         }
 
                         StickVisualizer {
+                            id: rightStickVisual
                             width: (parent.width - parent.spacing) / 2
                             height: parent.height
                             heading: "RIGHT STICK"
@@ -596,17 +616,19 @@ Item {
 
                 Column {
                     id: liveButtonsPane
-                    width: parent.width - liveAnalogPane.width - parent.spacing
-                    height: parent.height
-                    spacing: Style.space(4)
+                    width: parent.width
+                    height: Math.max(0, parent.height - y)
+                    spacing: Style.space(12)
 
                     Ui.PanelSectionHeader {
+                        id: liveButtonsHeader
                         text: "BUTTONS"
                         foreground: root.foreground
                         fontFamily: root.fontFamily
                     }
 
                     Item {
+                        id: liveButtonContent
                         width: parent.width
                         height: Math.max(0, parent.height - y)
 
@@ -623,7 +645,7 @@ Item {
                                 id: liveButtonFlow
                                 width: liveButtonViewport.width
                                 spacing: Style.space(4)
-                                readonly property int columns: width >= Style.space(260) ? 4 : 3
+                                readonly property int columns: width >= Style.space(480) ? 4 : 3
 
                                 Repeater {
                                     model: root.liveDigitalControlNames
@@ -696,8 +718,8 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.topMargin: Style.space(6)
-                    height: Math.min(implicitHeight, Math.max(0,
-                        (retrySelector.visible ? retrySelector.y : actionFooter.y) - y - Style.space(8)))
+                    height: implicitHeight
+                    maximumLineCount: root.compactLayout ? 3 : 4
                     textFormat: Text.PlainText
                     text: root.instructionText()
                     color: Qt.darker(root.foreground, 1.3)
@@ -713,47 +735,50 @@ Item {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
-                    height: actions.implicitHeight
+                    height: footerContent.implicitHeight
 
-                    Text {
-                        visible: root.phase === "review" && root.exportMessage !== ""
-                        anchors.left: parent.left
-                        anchors.right: actions.left
-                        anchors.rightMargin: Style.space(12)
-                        anchors.verticalCenter: parent.verticalCenter
-                        textFormat: Text.PlainText
-                        text: root.exportMessage
-                        color: root.foreground
-                        font.family: root.fontFamily
-                        font.pixelSize: Style.font.caption
-                        elide: Text.ElideRight
-                    }
+                    Column {
+                        id: footerContent
+                        width: parent.width
+                        spacing: Style.space(6)
 
-                    Row {
-                        id: actions
-                        anchors.right: parent.right
-                        spacing: Style.space(8)
+                        Text {
+                            visible: root.phase === "review" && root.exportMessage !== ""
+                            width: parent.width
+                            textFormat: Text.PlainText
+                            text: root.exportMessage
+                            color: root.foreground
+                            font.family: root.fontFamily
+                            font.pixelSize: Style.font.caption
+                            elide: Text.ElideRight
+                        }
 
-                        Repeater {
-                            id: actionRepeater
-                            model: root.actionLabels
+                        Flow {
+                            id: actions
+                            width: parent.width
+                            spacing: Style.space(8)
 
-                            delegate: Ui.Button {
-                                required property int index
-                                required property string modelData
-                                text: modelData
-                                tooltipText: root.phase === "review" && root.retryControls.length > 0 && index === 0
-                                    ? "Retry " + root.controlLabel(root.selectedRetryControl()) : ""
-                                bordered: true
-                                focusable: false
-                                hasCursor: root.actionsHaveCursor && root.actionIndex === index
-                                foreground: root.foreground
-                                background: root.background
-                                fontFamily: root.fontFamily
-                                onClicked: {
-                                    root.actionIndex = index;
-                                    root.cursorRow = "actions";
-                                    root.activateAction(index);
+                            Repeater {
+                                id: actionRepeater
+                                model: root.actionLabels
+
+                                delegate: Ui.Button {
+                                    required property int index
+                                    required property string modelData
+                                    text: modelData
+                                    tooltipText: root.phase === "review" && root.retryControls.length > 0 && index === 0
+                                        ? "Retry " + root.controlLabel(root.selectedRetryControl()) : ""
+                                    bordered: true
+                                    focusable: false
+                                    hasCursor: root.actionsHaveCursor && root.actionIndex === index
+                                    foreground: root.foreground
+                                    background: root.background
+                                    fontFamily: root.fontFamily
+                                    onClicked: {
+                                        root.actionIndex = index;
+                                        root.cursorRow = "actions";
+                                        root.activateAction(index);
+                                    }
                                 }
                             }
                         }
@@ -767,60 +792,67 @@ Item {
                     anchors.right: parent.right
                     anchors.bottom: actionFooter.top
                     anchors.bottomMargin: Style.space(8)
-                    height: retryControlsRow.implicitHeight
+                    height: retryContent.implicitHeight
 
-                    Ui.PanelSectionHeader {
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        text: "RETRY TARGET"
-                        foreground: root.foreground
-                        fontFamily: root.fontFamily
-                    }
-
-                    Row {
-                        id: retryControlsRow
-                        anchors.right: parent.right
+                    Column {
+                        id: retryContent
+                        width: parent.width
                         spacing: Style.space(6)
 
-                        Ui.Button {
-                            text: "Previous"
-                            tooltipText: "Previous retry target"
-                            bordered: true
-                            focusable: false
-                            enabled: root.retryIndex > 0
+                        Ui.PanelSectionHeader {
+                            text: "RETRY TARGET"
                             foreground: root.foreground
-                            background: root.background
                             fontFamily: root.fontFamily
-                            onClicked: {
-                                root.cursorRow = "retry";
-                                root.moveRetry(-1);
+                        }
+
+                        Row {
+                            id: retryControlsRow
+                            width: parent.width
+                            spacing: Style.space(6)
+
+                            Ui.Button {
+                                id: previousRetryButton
+                                text: "Previous"
+                                tooltipText: "Previous retry target"
+                                bordered: true
+                                focusable: false
+                                enabled: root.retryIndex > 0
+                                foreground: root.foreground
+                                background: root.background
+                                fontFamily: root.fontFamily
+                                onClicked: {
+                                    root.cursorRow = "retry";
+                                    root.moveRetry(-1);
+                                }
                             }
-                        }
 
-                        Ui.Button {
-                            text: root.controlLabel(root.selectedRetryControl())
-                            tooltipText: "Use Left/Right to choose a control"
-                            bordered: true
-                            focusable: false
-                            hasCursor: root.retryHasCursor
-                            foreground: root.foreground
-                            background: root.background
-                            fontFamily: root.fontFamily
-                            onClicked: root.cursorRow = "retry"
-                        }
+                            Ui.Button {
+                                width: Math.max(Style.space(80), parent.width - previousRetryButton.width - nextRetryButton.width - parent.spacing * 2)
+                                text: root.controlLabel(root.selectedRetryControl())
+                                tooltipText: "Use Left/Right to choose a control"
+                                bordered: true
+                                focusable: false
+                                hasCursor: root.retryHasCursor
+                                foreground: root.foreground
+                                background: root.background
+                                fontFamily: root.fontFamily
+                                onClicked: root.cursorRow = "retry"
+                            }
 
-                        Ui.Button {
-                            text: "Next"
-                            tooltipText: "Next retry target"
-                            bordered: true
-                            focusable: false
-                            enabled: root.retryIndex < root.retryControls.length - 1
-                            foreground: root.foreground
-                            background: root.background
-                            fontFamily: root.fontFamily
-                            onClicked: {
-                                root.cursorRow = "retry";
-                                root.moveRetry(1);
+                            Ui.Button {
+                                id: nextRetryButton
+                                text: "Next"
+                                tooltipText: "Next retry target"
+                                bordered: true
+                                focusable: false
+                                enabled: root.retryIndex < root.retryControls.length - 1
+                                foreground: root.foreground
+                                background: root.background
+                                fontFamily: root.fontFamily
+                                onClicked: {
+                                    root.cursorRow = "retry";
+                                    root.moveRetry(1);
+                                }
                             }
                         }
                     }
@@ -932,6 +964,8 @@ Item {
         property bool showDirections: false
         property var directionItems: []
         readonly property bool active: root.stickActive(xValue, yValue)
+        readonly property real headingContentGap: stickHeading.visible
+            ? stickValues.y + stickPlot.y - stickHeading.height : 0
 
         Text {
             id: stickHeading
@@ -947,18 +981,19 @@ Item {
         }
 
         Row {
+            id: stickValues
             anchors.top: stickHeading.visible ? stickHeading.bottom : parent.top
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.topMargin: stickHeading.visible ? Style.space(4) : 0
+            anchors.topMargin: stickHeading.visible ? Style.space(12) : 0
             spacing: Style.space(10)
 
             Rectangle {
                 id: stickPlot
                 width: Math.min(parent.height, Math.max(0, parent.width * 0.46))
                 height: width
-                anchors.verticalCenter: parent.verticalCenter
+                y: stickHeading.visible ? 0 : Math.max(0, (parent.height - height) / 2)
                 color: stickVisual.active ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
                     : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.04)
                 border.color: stickVisual.active ? root.foreground : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.35)
@@ -991,7 +1026,7 @@ Item {
 
             Column {
                 width: parent.width - stickPlot.width - parent.spacing
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenter: stickPlot.verticalCenter
                 spacing: Style.space(7)
 
                 Text {

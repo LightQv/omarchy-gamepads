@@ -113,13 +113,13 @@ for expected in \
   'token = "first-attempt"' \
   'pid = "^' \
   'float = true' \
-  'size = { 1120, 760 }' \
+  'size = { 1120, 620 }' \
   'size = { 860, 590 }' \
   'workspace = "special:gamepads"' \
   'window = "address:0xabc123"' \
   'hl.dsp.window.float' \
   'hl.dsp.window.resize' \
-  'x = 1120, y = 760' \
+  'x = 1120, y = 620' \
   'x = 860, y = 590' \
   'hl.dsp.window.center' \
   'hl.dsp.focus' \

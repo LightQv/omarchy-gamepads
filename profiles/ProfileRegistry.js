@@ -5,8 +5,6 @@
 var PROFILE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 var TYPE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 var CONTROL_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
-var PART_PATTERN = /^[a-z][a-z0-9_]{0,63}$/;
-var VIEW_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_\/-]{0,126}\.qml$/;
 var UNSAFE_TEXT_PATTERN = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/;
 var THRESHOLD_KEYS = [
   "baselineDurationMs", "digitalTriggerPress", "digitalTriggerRelease",
@@ -21,6 +19,15 @@ function validStringList(values, pattern) {
   for (var i = 0; i < values.length; i++) {
     if (typeof values[i] !== "string" || !pattern.test(values[i]) || seen[values[i]]) return false;
     seen[values[i]] = true;
+  }
+  return true;
+}
+
+function validTextList(values) {
+  if (!Array.isArray(values) || values.length > 16) return false;
+  for (var i = 0; i < values.length; i++) {
+    if (typeof values[i] !== "string" || values[i].length === 0 || values[i].length > 256
+        || UNSAFE_TEXT_PATTERN.test(values[i])) return false;
   }
   return true;
 }
@@ -78,22 +85,14 @@ function validateProfile(profile) {
   if (!validStringList(profile.expectedButtons, CONTROL_PATTERN)) return false;
   if (!validStringList(profile.expectedAxes, CONTROL_PATTERN)) return false;
   if (["digital", "analog"].indexOf(profile.triggerType) === -1) return false;
-  if (typeof profile.viewComponent !== "string" || !VIEW_PATTERN.test(profile.viewComponent)
-      || profile.viewComponent.indexOf("..") !== -1) return false;
   if (!profile.labels || typeof profile.labels !== "object" || Array.isArray(profile.labels)) return false;
-  if (!profile.semanticParts || typeof profile.semanticParts !== "object" || Array.isArray(profile.semanticParts)) return false;
-  if (!profile.animation || typeof profile.animation !== "object" || Array.isArray(profile.animation)) return false;
   if (!validateThresholds(profile.thresholds)) return false;
+  if (!validTextList(profile.knownLimitations)) return false;
   var labelKeys = Object.keys(profile.labels);
   for (var labelIndex = 0; labelIndex < labelKeys.length; labelIndex++) {
     var label = profile.labels[labelKeys[labelIndex]];
     if (!CONTROL_PATTERN.test(labelKeys[labelIndex]) || typeof label !== "string" || label.length === 0
         || label.length > 64 || UNSAFE_TEXT_PATTERN.test(label)) return false;
-  }
-  var controls = profile.expectedButtons.concat(profile.expectedAxes);
-  for (var controlIndex = 0; controlIndex < controls.length; controlIndex++) {
-    var part = profile.semanticParts[controls[controlIndex]];
-    if (typeof part !== "string" || !PART_PATTERN.test(part)) return false;
   }
   return true;
 }

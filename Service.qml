@@ -53,14 +53,12 @@ QtObject {
     readonly property bool dependencyMissing: health === "dependency-error"
     readonly property bool backendWarning: ready && lastErrorCode !== ""
     readonly property bool diagnosticActive: ["baseline_waiting", "baseline_capturing", "digital", "analog_left", "analog_right"].indexOf(diagnosticState.phase) !== -1
-    readonly property var helperCommand: {
-        if (!manifest)
-            return [];
-        var sourceDir = String(manifest.__sourceDir || "");
-        if (sourceDir === "")
-            return [];
-        return ["/usr/bin/python3", "-E", "-s", sourceDir + "/scripts/gamepad-helper.py"];
-    }
+    readonly property string helperPath: decodeURIComponent(
+        String(Qt.resolvedUrl("scripts/gamepad-helper.py")).replace(/^file:\/\//, "")
+    )
+    readonly property var helperCommand: helperPath === ""
+        ? []
+        : ["/usr/bin/python3", "-E", "-s", helperPath]
 
     function start() {
         if (helper.running || restartTimer.running || permanentFailure)

@@ -1,5 +1,7 @@
 # Phase 4 Results
 
+> Historical implementation record. The current Details layout and profile contract supersede the visual-pane design described below.
+
 **Phase:** Floating app and profile contract  
 **Date:** 2026-09-07  
 **Result:** Complete

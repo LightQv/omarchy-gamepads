@@ -39,9 +39,9 @@ Item {
     readonly property string selectedProfileId: controllerProfile ? controllerProfile.id : ""
     readonly property string streamingControllerId: registeredStreamingId
     readonly property real scrollPosition: scroll.contentItem ? scroll.contentItem.contentY : 0
-    readonly property bool visualProfileActive: profileView.active && profileView.status === Loader.Ready && !!profileView.item
     readonly property bool informationFits: !controller || information.implicitHeight <= scroll.height
-    readonly property real visualPaneWidth: visualPane.width
+    readonly property real inputPaneWidth: inputPane.width
+    readonly property real inputPaneHeight: inputPane.height
     readonly property var diagnosticState: service && service.diagnosticState ? service.diagnosticState : ({ phase: "idle" })
     readonly property string diagnosticPhase: diagnosticState.phase || "idle"
     readonly property bool diagnosticActive: ["baseline_waiting", "baseline_capturing", "digital", "analog_left", "analog_right"].indexOf(diagnosticPhase) !== -1
@@ -57,6 +57,13 @@ Item {
     readonly property real inputContentHeight: diagnosticTray.modeContentHeight
     readonly property bool liveButtonsScrollable: diagnosticTray.liveButtonsScrollable
     readonly property real liveButtonScrollPosition: diagnosticTray.liveButtonScrollPosition
+    readonly property real liveStickRowY: diagnosticTray.liveStickRowY
+    readonly property real liveButtonsPaneY: diagnosticTray.liveButtonsPaneY
+    readonly property real liveStickTitleGap: diagnosticTray.liveStickTitleGap
+    readonly property real liveButtonsTitleGap: diagnosticTray.liveButtonsTitleGap
+    readonly property bool guidedActionsWrapped: diagnosticTray.guidedActionsWrapped
+    readonly property bool guidedActionsFit: diagnosticTray.guidedActionsFit
+    readonly property bool guidedLayoutFits: diagnosticTray.guidedLayoutFits
     readonly property string actionCursorRow: diagnosticTray.cursorRow
     readonly property int actionCursorIndex: diagnosticTray.cursorRow === "mode" ? diagnosticTray.modeIndex
         : (diagnosticTray.cursorRow === "retry" ? diagnosticTray.retryIndex : diagnosticTray.actionIndex)
@@ -462,7 +469,7 @@ Item {
         title: "Gamepad Details"
         color: root.background
         implicitWidth: 1120
-        implicitHeight: 760
+        implicitHeight: 620
         minimumSize: Qt.size(760, 540)
 
         onVisibleChanged: {
@@ -593,15 +600,13 @@ Item {
 
                         Row {
                             id: mainPanes
-                            visible: !!root.controller
-                            anchors.top: parent.top
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            height: Math.max(0, parent.height - (diagnosticTray.visible ? diagnosticTray.height + Style.space(12) : 0))
+                            visible: !!root.controller || root.diagnosticSessionOpen
+                            anchors.fill: parent
                             spacing: Style.space(18)
 
                             Item {
                                 id: informationPane
+                                visible: !!root.controller
                                 width: {
                                     var available = parent.width - parent.spacing;
                                     return Math.min(Math.max(280, Math.floor(available * 0.38)), available - 360);
@@ -717,84 +722,33 @@ Item {
                             }
 
                             Item {
-                                id: visualPane
-                                visible: false
-                                width: parent.width - informationPane.width - parent.spacing
+                                id: inputPane
+                                width: informationPane.visible
+                                    ? parent.width - informationPane.width - parent.spacing
+                                    : parent.width
                                 height: parent.height
 
-                                Ui.PanelSectionHeader {
-                                    id: visualHeader
-                                    text: "CONTROLLER VIEW"
+                                Components.DiagnosticTray {
+                                    id: diagnosticTray
+                                    anchors.fill: parent
+                                    service: root.service
+                                    controller: root.controller
+                                    profile: root.controllerProfile
+                                    exportMessage: root.exportMessage
                                     foreground: root.foreground
+                                    background: root.background
                                     fontFamily: root.fontFamily
-                                }
-
-                                Loader {
-                                    id: profileView
-                                    active: visualPane.visible && root.opened && !!root.controllerProfile
-                                    visible: active
-                                    anchors.top: visualHeader.bottom
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    anchors.topMargin: Style.space(8)
-                                    source: root.controllerProfile ? Qt.resolvedUrl("profiles/" + root.controllerProfile.viewComponent) : ""
-                                    onLoaded: {
-                                        if (!item)
-                                            return;
-                                        item.controller = Qt.binding(function () {
-                                            return root.controller;
-                                        });
-                                        item.foreground = Qt.binding(function () {
-                                            return root.foreground;
-                                        });
-                                        item.fontFamily = Qt.binding(function () {
-                                            return root.fontFamily;
-                                        });
-                                    }
-                                }
-
-                                Ui.CursorSurface {
-                                    visible: !root.controllerProfile
-                                    anchors.top: visualHeader.bottom
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.bottom: parent.bottom
-                                    anchors.topMargin: Style.space(8)
-                                    bordered: true
-                                    foreground: root.foreground
-
-                                    Column {
-                                        anchors.centerIn: parent
-                                        width: Math.min(parent.width - Style.space(48), Style.space(440))
-                                        spacing: Style.space(8)
-
-                                        Text {
-                                            width: parent.width
-                                            text: "Detailed profile unavailable"
-                                            color: root.foreground
-                                            font.family: root.fontFamily
-                                            font.pixelSize: Style.font.title
-                                            font.bold: true
-                                            horizontalAlignment: Text.AlignHCenter
-                                        }
-
-                                        Text {
-                                            width: parent.width
-                                            text: "This SDL-recognized controller keeps its vitals and device tab, but does not yet have a visual or guided diagnostic profile."
-                                            color: Qt.darker(root.foreground, 1.35)
-                                            font.family: root.fontFamily
-                                            font.pixelSize: Style.font.bodySmall
-                                            horizontalAlignment: Text.AlignHCenter
-                                            wrapMode: Text.WordWrap
-                                        }
-                                    }
+                                    enabled: !cancelDialog.opened
+                                    testedControllerPresent: root.testedControllerPresent
+                                    compactLayout: width < Style.space(520) || detailsWindow.height < 600
+                                    onCancelRequested: root.showCancelConfirmation()
+                                    onExportRequested: root.exportDiagnosticReport()
                                 }
                             }
                         }
 
                         Column {
-                            visible: !root.controller
+                            visible: !root.controller && !root.diagnosticSessionOpen
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.verticalCenter: mainPanes.verticalCenter
                             width: Math.min(parent.width, Style.space(520))
@@ -824,25 +778,6 @@ Item {
                             }
                         }
 
-                        Components.DiagnosticTray {
-                            id: diagnosticTray
-                            visible: !!root.controller || root.diagnosticSessionOpen
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            service: root.service
-                            controller: root.controller
-                            profile: root.controllerProfile
-                            exportMessage: root.exportMessage
-                            foreground: root.foreground
-                            background: root.background
-                            fontFamily: root.fontFamily
-                            enabled: !cancelDialog.opened
-                            testedControllerPresent: root.testedControllerPresent
-                            compactLayout: detailsWindow.height < 650
-                            onCancelRequested: root.showCancelConfirmation()
-                            onExportRequested: root.exportDiagnosticReport()
-                        }
                     }
                 }
             }

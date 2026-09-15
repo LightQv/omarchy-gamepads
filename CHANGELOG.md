@@ -4,6 +4,11 @@ All notable changes to this project will be documented here.
 
 ## [Unreleased]
 
+- Move Live Input and Guided Diagnostic into the persistent Details right pane.
+- Reduce the default Details window height and normalize section spacing.
+- Remove the dormant v1 profile-view contract while preserving profiles for labels and diagnostics.
+- Refresh README screenshots with UI-only captures of the approved layout.
+
 ## [1.0.0] - 2026-09-08
 
 - Add the Omarchy plugin foundation.

@@ -24,7 +24,7 @@ place_details_window_inner() {
   local expected_pid=$PPID
   local maximum_hyprland_bytes=4194304
   local workspace_json target_workspace clients_json client address floating current_workspace window
-  local monitors_json dimensions window_width=1120 window_height=760 fitted_width fitted_height
+  local monitors_json dimensions window_width=1120 window_height=620 fitted_width fitted_height
 
   [[ $rule_token =~ ^[A-Za-z0-9_-]{1,128}$ ]] || return 1
   [[ $expected_pid =~ ^[1-9][0-9]*$ ]] || return 1

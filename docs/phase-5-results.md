@@ -1,5 +1,7 @@
 # Phase 5 Results
 
+> Historical implementation record. The current Details layout places Live Input and Guided Diagnostic together in the right pane.
+
 ## Implemented
 
 - Profile-owned, strictly validated provisional Switch Pro thresholds.

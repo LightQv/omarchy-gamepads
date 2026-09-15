@@ -23,11 +23,10 @@ const switchProController = {
   productId: "2009"
 };
 
-test("resolves the Switch Pro profile and semantic labels", () => {
+test("resolves the Switch Pro profile and control labels", () => {
   const profile = Registry.profileFor(switchProController);
   assert.equal(profile.id, "switch-pro");
   assert.equal(Registry.labelFor(profile, "south"), "B");
-  assert.equal(profile.semanticParts.south, "button_b");
   assert.deepEqual(Array.from(profile.expectedButtons), [
     "south", "east", "west", "north", "back", "start", "misc1", "guide",
     "left_stick", "right_stick", "dpad_up", "dpad_down", "dpad_left",
@@ -67,19 +66,15 @@ test("prefers a refined matcher and rejects ambiguous matches", () => {
 test("rejects malformed profile contracts", () => {
   const malformed = Object.assign({}, SwitchPro.profile, { id: "Not Valid" });
   assert.equal(Registry.validateProfile(malformed), false);
-  const missingView = Object.assign({}, SwitchPro.profile, { viewComponent: "../Outside.qml" });
-  assert.equal(Registry.validateProfile(missingView), false);
-  const missingMapping = Object.assign({}, SwitchPro.profile, {
-    semanticParts: Object.assign({}, SwitchPro.profile.semanticParts)
-  });
-  delete missingMapping.semanticParts.left_trigger;
-  assert.equal(Registry.validateProfile(missingMapping), false);
   const vendorOnly = Object.assign({}, SwitchPro.profile, { matchers: [{ vendorId: "057e" }] });
   assert.equal(Registry.validateProfile(vendorOnly), false);
   const productOnly = Object.assign({}, SwitchPro.profile, {
     matchers: [{ sdlTypes: ["switchpro"], productId: "2009" }]
   });
   assert.equal(Registry.validateProfile(productOnly), false);
+  assert.equal(Registry.validateProfile(Object.assign({}, SwitchPro.profile, {
+    knownLimitations: ["unsafe\ntext"]
+  })), false);
   assert.equal(Registry.validateProfile(SwitchPro.profile), true);
 });
 
