@@ -33,6 +33,10 @@ canonical_base='https://github.com/lightqv/omarchy-gamepads'
   printf '%s\n' 'README.md does not use the canonical repository URL' >&2
   exit 1
 }
+/usr/bin/grep -Fq "Version $version was tested" "$readme" || {
+  printf 'README.md tested version does not match %s\n' "$version" >&2
+  exit 1
+}
 
 if /usr/bin/grep -Fq '<git-url>' "$readme"; then
   printf '%s\n' 'README.md still contains a Git URL placeholder' >&2
@@ -45,5 +49,10 @@ for screenshot in details-window.png live-input.png compact-panel.png guided-dia
     exit 1
   }
 done
+
+[[ -s "$repo_root/preview.png" ]] || {
+  printf '%s\n' 'Missing marketplace preview: preview.png' >&2
+  exit 1
+}
 
 printf 'Release metadata %s is consistent.\n' "$version"

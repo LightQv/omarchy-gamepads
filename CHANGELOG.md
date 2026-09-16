@@ -4,10 +4,12 @@ All notable changes to this project will be documented here.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-16
+
 - Move Live Input and Guided Diagnostic into the persistent Details right pane.
 - Reduce the default Details window height and normalize section spacing.
 - Remove the dormant v1 profile-view contract while preserving profiles for labels and diagnostics.
-- Refresh README screenshots with UI-only captures of the approved layout.
+- Refresh release screenshots and add a marketplace preview of the approved layout.
 
 ## [1.0.0] - 2026-09-08
 
@@ -28,5 +30,6 @@ All notable changes to this project will be documented here.
 - Bound deferred SDL controller admission and reuse one race-safe dynamic Details window rule.
 - Prepare the non-3D feature set as the stable v1 release.
 
-[Unreleased]: https://github.com/lightqv/omarchy-gamepads/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/lightqv/omarchy-gamepads/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/lightqv/omarchy-gamepads/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lightqv/omarchy-gamepads/releases/tag/v1.0.0
