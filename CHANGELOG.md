@@ -4,6 +4,10 @@ All notable changes to this project will be documented here.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-17
+
+- Remove repository-root agent instructions from the installed plugin tree.
+
 ## [1.1.0] - 2026-09-16
 
 - Move Live Input and Guided Diagnostic into the persistent Details right pane.
@@ -30,6 +34,7 @@ All notable changes to this project will be documented here.
 - Bound deferred SDL controller admission and reuse one race-safe dynamic Details window rule.
 - Prepare the non-3D feature set as the stable v1 release.
 
-[Unreleased]: https://github.com/lightqv/omarchy-gamepads/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/lightqv/omarchy-gamepads/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/lightqv/omarchy-gamepads/releases/tag/v1.1.1
 [1.1.0]: https://github.com/lightqv/omarchy-gamepads/releases/tag/v1.1.0
 [1.0.0]: https://github.com/lightqv/omarchy-gamepads/releases/tag/v1.0.0

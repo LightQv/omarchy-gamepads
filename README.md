@@ -89,7 +89,7 @@ included in v1.
 - `python-pysdl3` from the official Arch repository
 - An SDL-recognized gamepad
 
-Version 1.1.0 was tested with Omarchy 4.0.4, Quickshell 0.3.1, Hyprland 0.56.2,
+Version 1.1.1 was tested with Omarchy 4.0.4, Quickshell 0.3.1, Hyprland 0.56.2,
 Python 3.14.7, PySDL3 0.9.12b1, and SDL 3.4.16. Omarchy is rolling software;
 revalidate the plugin after major shell, SDL, or Hyprland upgrades.
 
