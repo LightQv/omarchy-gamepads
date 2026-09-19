@@ -5,15 +5,22 @@ Controller vitals, live input, and guided diagnostics in the Omarchy shell.
 ![Omarchy Gamepads Details window](.github/assets/details-window.png)
 
 Omarchy Gamepads adds a native bar widget, compact controller overview, and
-keyboard-friendly Details window. Version 1 focuses on reliable Nintendo
-Switch Pro Controller diagnostics without root services, exclusive input grabs,
-or persistent hardware identifiers.
+keyboard-friendly Details window for up to 32 SDL-recognized controllers.
+Generic controller status, capabilities, and live input work independently of
+controller brand. Hardware-specific profiles add accurate labels and guided
+diagnostics; the Nintendo Switch Pro profile is complete and has been
+physically verified on first-party hardware.
+
+**Hardware testers and contributors wanted:** Help add physically verified
+guided diagnostic profiles for Xbox 360, Xbox One, Xbox Series X|S, DualShock
+3, DualShock 4, and DualSense controllers. Owning one and testing a build is
+enough; coding is not required. See [Controller Support](#controller-support).
 
 ## Features
 
 - View up to 32 concurrently connected SDL-recognized controllers from one native Omarchy bar widget.
 - Inspect connection, battery, capabilities, buttons, triggers, and stick input.
-- Run guided Switch Pro checks over USB or Bluetooth.
+- Run profile-driven guided checks for controllers with a verified profile.
 - Review passed, warning, not detected, incomplete, and unavailable results.
 - Retry individual controls without restarting the complete diagnostic.
 - Export explicit, privacy-filtered JSON and Markdown reports.
@@ -72,13 +79,49 @@ remain attached to the controller that started the session.
 
 ## Controller Support
 
-Up to 32 concurrently connected controllers recognized by SDL receive generic
-status and live-input views. The guided workflow currently has a detailed
-profile for the Nintendo Switch Pro Controller.
+The plugin separates generic SDL support from hardware-specific guided
+diagnostics:
 
-The Switch Pro profile has been physically verified over USB and Bluetooth.
-Diagnostic thresholds are intentionally conservative and report observations,
-not hardware-failure conclusions.
+| Support level | Availability | Features |
+| --- | --- | --- |
+| Generic SDL support | Up to 32 concurrently connected SDL-recognized controllers | Detection, separate controller tabs, hotplugging, connection and battery data when available, capabilities, and live input |
+| Guided profile available | Controllers SDL maps as Nintendo Switch Pro | Hardware-specific labels, expected controls, diagnostic thresholds, guided checks, and report generation |
+
+SDL provides mappings for Xbox and PlayStation controller families, so those
+controllers can already receive generic support when recognized by Linux and
+SDL. Exact behavior depends on the controller model, connection method, Linux
+driver, and SDL mapping. These families have not yet been physically verified
+for this plugin and do not currently have guided diagnostic profiles.
+
+The profile has been physically verified with a first-party Nintendo Switch Pro
+Controller (`057e:2009`) over USB and Bluetooth. Other devices that SDL maps as
+Nintendo Switch Pro can receive the profile but are not covered by that
+physical verification. Diagnostic thresholds are intentionally conservative
+and report observations, not hardware-failure conclusions.
+
+### Help expand guided diagnostics
+
+Hardware testers and code contributors are wanted for these first-party
+controller families:
+
+- Xbox 360
+- Xbox One
+- Xbox Series X|S
+- PlayStation 3 DualShock 3
+- PlayStation 4 DualShock 4
+- PlayStation 5 DualSense
+
+Testing alone is a valuable contribution. Open a
+[controller support issue](https://github.com/lightqv/omarchy-gamepads/issues/new)
+with the exact model and available connection methods before work begins. A
+profile implementation can then be prepared for a controller owner to test.
+Profiles are described as physically verified only after every claimed
+connection method has been tested on the stated hardware.
+
+Code contributions must follow the profile acceptance requirements in
+[`CONTRIBUTING.md`](CONTRIBUTING.md#controller-profiles). They must include
+focused matching, deterministic tests and fixtures, documented limitations,
+and physical verification without private device identifiers.
 
 Interactive 3D visualization is planned for v2. It is not required by or
 included in v1.
@@ -89,7 +132,7 @@ included in v1.
 - `python-pysdl3` from the official Arch repository
 - An SDL-recognized gamepad
 
-Version 1.1.1 was tested with Omarchy 4.0.4, Quickshell 0.3.1, Hyprland 0.56.2,
+Version 1.1.2 was tested with Omarchy 4.0.4, Quickshell 0.3.1, Hyprland 0.56.2,
 Python 3.14.7, PySDL3 0.9.12b1, and SDL 3.4.16. Omarchy is rolling software;
 revalidate the plugin after major shell, SDL, or Hyprland upgrades.
 
